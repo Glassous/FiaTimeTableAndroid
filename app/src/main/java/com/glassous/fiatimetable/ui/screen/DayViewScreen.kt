@@ -76,8 +76,31 @@ fun DayViewScreen() {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    val dayName = TimeTableData.weekDayNames.getOrNull(currentDayIndex) ?: ""
-    val dayDate = weekDates.getOrNull(currentDayIndex) ?: ""
+    // 预告逻辑：预先计算标题使用的显示索引与日期（满足“直接从明天开始”）
+    val timeSlotsForPreview = timeTableData.timeSlots
+    val todayHasCoursePreview = timeSlotsForPreview.indices.any { viewModel.cellForWeek(currentDayIndex, it) != null }
+    val lastSlotWithCoursePreview = timeSlotsForPreview.indices.filter { viewModel.cellForWeek(currentDayIndex, it) != null }.lastOrNull()
+    val alreadyFinishedTodayPreview = lastSlotWithCoursePreview?.let { java.time.LocalTime.now().isAfter(endTimeOf(timeSlotsForPreview[it])) } ?: false
+    val showTomorrowPreviewHeader = viewModel.isAtToday() && (!todayHasCoursePreview || alreadyFinishedTodayPreview)
+    val termWeeksHeader = timeTableData.terms.find { it.name == selectedTerm }?.weeks ?: currentWeek
+    val displayDayIndexHeader = if (showTomorrowPreviewHeader) (currentDayIndex + 1) % 7 else currentDayIndex
+    val displayWeekHeader = if (showTomorrowPreviewHeader && currentDayIndex == 6) (currentWeek + 1).coerceAtMost(termWeeksHeader) else currentWeek
+
+    val dayName = TimeTableData.weekDayNames.getOrNull(displayDayIndexHeader) ?: ""
+    val dayDate = if (showTomorrowPreviewHeader) {
+        val term = timeTableData.terms.find { it.name == selectedTerm }
+        val dfYMD = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd")
+        val dfMD = java.time.format.DateTimeFormatter.ofPattern("MM/dd")
+        if (term != null) {
+            val start = java.time.LocalDate.parse(term.startDate, dfYMD)
+            val date = start.plusWeeks((displayWeekHeader - 1).toLong()).plusDays(displayDayIndexHeader.toLong())
+            date.format(dfMD)
+        } else {
+            weekDates.getOrNull(displayDayIndexHeader) ?: ""
+        }
+    } else {
+        weekDates.getOrNull(currentDayIndex) ?: ""
+    }
 
     Scaffold(
         topBar = {
@@ -134,6 +157,7 @@ fun DayViewScreen() {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .heightIn(min = 44.dp)
                             .padding(bottom = 8.dp)
                             .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(6.dp)),
                         contentAlignment = Alignment.Center
@@ -142,7 +166,7 @@ fun DayViewScreen() {
                             text = "明日课程预告",
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.padding(vertical = 6.dp)
+                            modifier = Modifier.padding(vertical = 12.dp)
                         )
                     }
                 }
