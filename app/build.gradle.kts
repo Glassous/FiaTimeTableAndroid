@@ -51,6 +51,10 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.navigation.compose)
+
+    // Add Material Components for XML Material3 theme attributes
+    implementation("com.google.android.material:material:1.12.0")
+
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.gson)
     // 阿里云 OSS Android SDK
