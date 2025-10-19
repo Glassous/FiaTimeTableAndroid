@@ -60,6 +60,10 @@ fun SettingsScreen() {
     val startPagePref by viewModel.startPage.collectAsState()
     // 新增：云端同步消息
     val syncMessage by viewModel.syncMessage.collectAsState()
+    // 新增：是否显示周末
+    val showWeekend by viewModel.showWeekend.collectAsState()
+    // 新增：是否显示午休/晚休
+    val showBreaks by viewModel.showBreaks.collectAsState()
 
     var newTermName by remember { mutableStateOf(selectedTerm) }
     var newTermWeeks by remember { mutableStateOf("16") }
@@ -224,6 +228,39 @@ fun SettingsScreen() {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "选择应用启动时进入的默认页面",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            // 新增：显示选项
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(text = "显示选项", style = MaterialTheme.typography.titleMedium)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("显示周末", style = MaterialTheme.typography.bodyLarge)
+                            Switch(checked = showWeekend, onCheckedChange = { viewModel.setShowWeekend(it) })
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("显示午休/晚休", style = MaterialTheme.typography.bodyLarge)
+                            Switch(checked = showBreaks, onCheckedChange = { viewModel.setShowBreaks(it) })
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "关闭时隐藏午休/晚休分隔行与标题",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

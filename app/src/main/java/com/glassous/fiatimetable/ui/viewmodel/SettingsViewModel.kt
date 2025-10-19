@@ -56,6 +56,14 @@ class SettingsViewModel(private val repository: TimeTableRepository) : ViewModel
 
     private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
+    // 是否显示周末：true/false
+    private val _showWeekend = MutableStateFlow(true)
+    val showWeekend: StateFlow<Boolean> = _showWeekend.asStateFlow()
+
+    // 是否显示休息分隔线：true/false
+    private val _showBreaks = MutableStateFlow(true)
+    val showBreaks: StateFlow<Boolean> = _showBreaks.asStateFlow()
+
     init {
         viewModelScope.launch {
             loadData()
@@ -90,6 +98,10 @@ class SettingsViewModel(private val repository: TimeTableRepository) : ViewModel
             _theme.value = repository.getTheme()
             // 加载启动页面偏好
             _startPage.value = repository.getStartPage()
+            // 加载是否显示周末
+            _showWeekend.value = repository.getShowWeekend()
+            // 加载是否显示休息分隔线
+            _showBreaks.value = repository.getShowBreaks()
         }
     }
 
@@ -294,6 +306,20 @@ class SettingsViewModel(private val repository: TimeTableRepository) : ViewModel
             } catch (e: Exception) {
                 _syncMessage.value = "下载失败：${e.message ?: "未知错误"}"
             }
+        }
+    }
+    // 是否显示周末设置
+    fun setShowWeekend(show: Boolean) {
+        viewModelScope.launch {
+            _showWeekend.value = show
+            repository.saveShowWeekend(show)
+        }
+    }
+
+    fun setShowBreaks(show: Boolean) {
+        viewModelScope.launch {
+            _showBreaks.value = show
+            repository.saveShowBreaks(show)
         }
     }
 }

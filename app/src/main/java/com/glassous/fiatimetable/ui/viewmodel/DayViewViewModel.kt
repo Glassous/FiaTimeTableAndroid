@@ -37,6 +37,10 @@ class DayViewViewModel(private val repository: TimeTableRepository) : ViewModel(
     private val _weekDates = MutableStateFlow<List<String>>(emptyList())
     val weekDates: StateFlow<List<String>> = _weekDates.asStateFlow()
 
+    // 是否显示休息分隔线
+    private val _showBreaks = MutableStateFlow(true)
+    val showBreaks: StateFlow<Boolean> = _showBreaks.asStateFlow()
+
     private val dateFormatterYMD = DateTimeFormatter.ofPattern("yyyy-MM-dd")
     private val dateFormatterMD = DateTimeFormatter.ofPattern("MM/dd")
 
@@ -69,10 +73,14 @@ class DayViewViewModel(private val repository: TimeTableRepository) : ViewModel(
                 recomputeWeekAndDates()
                 // 设置为今天的星期索引
                 _currentDayIndex.value = LocalDate.now().dayOfWeek.value.let { it - 1 }.coerceIn(0, 6)
+                // 读取是否显示休息分隔线
+                _showBreaks.value = repository.getShowBreaks()
             } catch (e: Exception) {
                 _timeTableData.value = createDefaultData()
                 recomputeWeekAndDates()
                 _currentDayIndex.value = LocalDate.now().dayOfWeek.value.let { it - 1 }.coerceIn(0, 6)
+                // 读取是否显示休息分隔线
+                _showBreaks.value = repository.getShowBreaks()
             }
         }
     }
@@ -91,14 +99,30 @@ class DayViewViewModel(private val repository: TimeTableRepository) : ViewModel(
 
     /** 切换到前一天（循环） */
     fun prevDay() {
-        val newIndex = (_currentDayIndex.value + 6) % 7
+        val prevIndex = _currentDayIndex.value
+        val newIndex = (prevIndex + 6) % 7
         _currentDayIndex.value = newIndex
+        if (prevIndex == 0 && newIndex == 6) {
+            val term = _timeTableData.value.terms.find { it.name == _selectedTerm.value }
+            if (term != null && _currentWeek.value > 1) {
+                _currentWeek.value = (_currentWeek.value - 1).coerceAtLeast(1)
+                recomputeWeekDatesOnly()
+            }
+        }
     }
 
     /** 切换到后一天（循环） */
     fun nextDay() {
-        val newIndex = (_currentDayIndex.value + 1) % 7
+        val prevIndex = _currentDayIndex.value
+        val newIndex = (prevIndex + 1) % 7
         _currentDayIndex.value = newIndex
+        if (prevIndex == 6 && newIndex == 0) {
+            val term = _timeTableData.value.terms.find { it.name == _selectedTerm.value }
+            if (term != null && _currentWeek.value < term.weeks) {
+                _currentWeek.value = (_currentWeek.value + 1).coerceAtMost(term.weeks)
+                recomputeWeekDatesOnly()
+            }
+        }
     }
 
     /** 回到今天（根据系统日期） */
@@ -173,6 +197,29 @@ class DayViewViewModel(private val repository: TimeTableRepository) : ViewModel(
         }
     }
 
+    // 新增：按指定周数返回格子内容，用于“明日课程预告”跨周预览
+    fun cellForWeekIndex(dayIndex: Int, slotIndex: Int, week: Int): Any? {
+        val courses = _timeTableData.value.courses[_selectedTerm.value] ?: return null
+        val dayCourses = courses[dayIndex] ?: return null
+        val data = dayCourses[slotIndex] ?: return null
+        return when (data) {
+            is List<*> -> {
+                val filtered = data.filterIsInstance<Course>().filter { it.selectedWeeks.contains(week) }
+                if (filtered.isNotEmpty()) filtered else null
+            }
+            is Map<*, *> -> {
+                if (data["continued"] == true) {
+                    val from = (data["fromSlot"] as? Number)?.toInt() ?: slotIndex
+                    val origin = dayCourses[from]
+                    if (origin is List<*>) {
+                        val filtered = origin.filterIsInstance<Course>().filter { it.selectedWeeks.contains(week) }
+                        if (filtered.isNotEmpty()) data else null
+                    } else null
+                } else null
+            }
+            else -> null
+        }
+    }
     /** 创建默认数据用于演示 */
     private fun createDefaultData(): TimeTableData {
         return TimeTableData(

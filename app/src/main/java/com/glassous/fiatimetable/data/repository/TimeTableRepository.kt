@@ -28,6 +28,8 @@ class TimeTableRepository(context: Context) {
         private const val KEY_SELECTED_TERM = "xf_term"
         private const val KEY_THEME = "xf_theme"
         private const val KEY_START_PAGE = "xf_start_page"
+        private const val KEY_SHOW_WEEKEND = "xf_show_weekend"
+        private const val KEY_SHOW_BREAKS = "xf_show_breaks"
         // 云端同步配置
         private const val KEY_OSS_ENDPOINT = "xf_oss_endpoint"
         private const val KEY_OSS_BUCKET = "xf_oss_bucket"
@@ -168,6 +170,24 @@ class TimeTableRepository(context: Context) {
 
     fun saveStartPage(page: String) {
         sharedPreferences.edit().putString(KEY_START_PAGE, page).apply()
+    }
+
+    // 是否显示周末设置
+    fun getShowWeekend(): Boolean {
+        return sharedPreferences.getBoolean(KEY_SHOW_WEEKEND, true)
+    }
+
+    fun saveShowWeekend(show: Boolean) {
+        sharedPreferences.edit().putBoolean(KEY_SHOW_WEEKEND, show).apply()
+    }
+
+    // 是否显示休息分隔线设置
+    fun getShowBreaks(): Boolean {
+        return sharedPreferences.getBoolean(KEY_SHOW_BREAKS, true)
+    }
+
+    fun saveShowBreaks(show: Boolean) {
+        sharedPreferences.edit().putBoolean(KEY_SHOW_BREAKS, show).apply()
     }
 
     // 监听主题变更（供 Compose 层注册/注销）

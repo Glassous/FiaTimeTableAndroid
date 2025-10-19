@@ -14,6 +14,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -57,7 +67,11 @@ private fun segmentOf(slot: String): String {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WeekViewScreen() {
+fun WeekViewScreen(
+    pureMode: Boolean,
+    onEnterPureMode: () -> Unit,
+    onExitPureMode: () -> Unit
+) {
     val context = LocalContext.current
     val viewModel: WeekViewViewModel = viewModel(
         factory = WeekViewViewModelFactory(context)
@@ -67,6 +81,8 @@ fun WeekViewScreen() {
     val selectedTerm by viewModel.selectedTerm.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
     val weekDates by viewModel.weekDates.collectAsState()
+    val showWeekend by viewModel.showWeekend.collectAsState()
+    val showBreaks by viewModel.showBreaks.collectAsState()
 
     // 页面恢复时刷新，确保设置页更改生效
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -132,30 +148,56 @@ fun WeekViewScreen() {
         showBottomSheet = true
     }
     
-    Column(modifier = Modifier.fillMaxSize()) {
-        // 顶部栏：周次显示与切换
-        TopAppBar(
-            title = {
-                Text(text = "第${currentWeek}周")
-            },
-            actions = {
-                val atCurrentWeek = viewModel.isAtCurrentWeek()
-                if (!atCurrentWeek) {
-                    TextButton(onClick = { viewModel.backToCurrentWeek() }) {
-                        Text(text = "回到本周")
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // 顶部栏：周次显示与切换（纯净模式隐藏，带动画）
+            AnimatedVisibility(
+                visible = !pureMode,
+                enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing)),
+                exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing))
+            ) {
+                TopAppBar(
+                    title = {
+                        val dateText = remember {
+                            java.text.SimpleDateFormat("yyyy/MM/dd", java.util.Locale.getDefault()).format(java.util.Date())
+                        }
+                        val dow = remember { java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_WEEK) }
+                        val dayName = when (dow) {
+                            java.util.Calendar.MONDAY -> "周一"
+                            java.util.Calendar.TUESDAY -> "周二"
+                            java.util.Calendar.WEDNESDAY -> "周三"
+                            java.util.Calendar.THURSDAY -> "周四"
+                            java.util.Calendar.FRIDAY -> "周五"
+                            java.util.Calendar.SATURDAY -> "周六"
+                            else -> "周日"
+                        }
+                        Column {
+                            Text(text = dateText, style = MaterialTheme.typography.titleLarge)
+                            Text(text = "第${currentWeek}周  $dayName", style = MaterialTheme.typography.bodyMedium)
+                        }
+                    },
+                    actions = {
+                        val atCurrentWeek = viewModel.isAtCurrentWeek()
+                        if (!atCurrentWeek) {
+                            IconButton(onClick = { viewModel.backToCurrentWeek() }) {
+                                Icon(Icons.Default.Refresh, contentDescription = "回到本周")
+                            }
+                        }
+                        IconButton(onClick = { onEnterPureMode() }) {
+                            Icon(Icons.Default.VisibilityOff, contentDescription = "纯净模式")
+                        }
+                        IconButton(onClick = { viewModel.prevWeek() }) {
+                            Icon(Icons.Default.ChevronLeft, contentDescription = "上一周")
+                        }
+                        IconButton(onClick = { viewModel.nextWeek() }) {
+                            Icon(Icons.Default.ChevronRight, contentDescription = "下一周")
+                        }
                     }
-                }
-                IconButton(onClick = { viewModel.prevWeek() }) {
-                    Icon(Icons.Default.ChevronLeft, contentDescription = "上一周")
-                }
-                IconButton(onClick = { viewModel.nextWeek() }) {
-                    Icon(Icons.Default.ChevronRight, contentDescription = "下一周")
-                }
+                )
             }
-        )
 
-        // 课程表网格 - 直接显示，无需学期选择器
-        TimeTableGrid(
+            // 课程表网格 - 直接显示，无需学期选择器
+            TimeTableGrid(
             timeSlots = timeTableData.timeSlots,
             courses = timeTableData.courses[selectedTerm] ?: emptyMap(), 
             weekDates = weekDates,
@@ -174,10 +216,24 @@ fun WeekViewScreen() {
                 deletingOnlineCourse = course
                 showOnlineDeleteConfirm = true
             },
+            showWeekend = showWeekend,
+            showBreaks = showBreaks,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(8.dp)
         )
+        }
+        // 纯净模式退出悬浮按钮
+        if (pureMode) {
+            FloatingActionButton(
+                onClick = { onExitPureMode() },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp)
+            ) {
+                Icon(Icons.Default.Visibility, contentDescription = "退出纯净模式")
+            }
+        }
     }
     
     // MD3 Bottom Sheet：显示该时间格的课程信息与操作
@@ -369,6 +425,8 @@ private fun TimeTableGrid(
     onAddOnlineCourse: () -> Unit,
     onEditOnlineCourse: (OnlineCourse) -> Unit,
     onDeleteOnlineCourse: (OnlineCourse) -> Unit,
+    showWeekend: Boolean,
+    showBreaks: Boolean,
     modifier: Modifier = Modifier
 ) {
     // 过滤函数：根据当前周返回该格子的有效数据
@@ -427,7 +485,7 @@ private fun TimeTableGrid(
     ) {
         // 表头 - 星期与左侧时间列（含日期）
         item {
-            HeaderWithSegment(weekDates = weekDates)
+            HeaderWithSegment(weekDates = weekDates, showWeekend = showWeekend)
         }
         // 取消中间空隙，避免割裂感
         item { Spacer(modifier = Modifier.height(4.dp)) }
@@ -444,7 +502,9 @@ private fun TimeTableGrid(
                         else -> null
                     }
                     if (breakLabel != null) {
-                        BreakHeader(breakLabel)
+                        if (showBreaks) {
+                            BreakHeader(breakLabel)
+                        }
                     }
                 }
                 Row(
@@ -493,19 +553,31 @@ private fun TimeTableGrid(
                     }
                     Spacer(modifier = Modifier.width(2.dp))
                     // 每日课程格子
-                    TimeTableData.weekDayNames.forEachIndexed { dayIndex, _ ->
+                    val days = if (showWeekend) TimeTableData.weekDayNames else TimeTableData.weekDayNames.take(5)
+                    days.forEachIndexed { dayIndex, _ ->
+                        val courseData = cellForWeek(dayIndex, timeSlotIndex)
+                        val rawData = courses[dayIndex]?.get(timeSlotIndex)
+                        val otherCourse = cellForOtherWeeksCourse(dayIndex, timeSlotIndex)
+                        val cellHasContent = when (courseData) {
+                            is List<*> -> courseData.filterIsInstance<Course>().isNotEmpty()
+                            is Map<*, *> -> (courseData["continued"] == true)
+                            else -> otherCourse != null
+                        }
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .height(120.dp)
                                 .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(4.dp))
-                                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp))
+                                .then(
+                                    if (cellHasContent) Modifier.border(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.outline,
+                                        RoundedCornerShape(4.dp)
+                                    ) else Modifier
+                                )
                                 .clickable { onCellClick(dayIndex, timeSlotIndex) },
                             contentAlignment = Alignment.Center
                         ) {
-                            val courseData = cellForWeek(dayIndex, timeSlotIndex)
-                            val rawData = courses[dayIndex]?.get(timeSlotIndex)
-                            val otherCourse = cellForOtherWeeksCourse(dayIndex, timeSlotIndex)
                             when (courseData) {
                                 is List<*> -> {
                                     val courseList = courseData.filterIsInstance<Course>()
@@ -588,7 +660,7 @@ private fun BreakHeader(label: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(32.dp)
+            .height(24.dp)
             .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(6.dp)),
         contentAlignment = Alignment.Center
     ) {
@@ -602,33 +674,27 @@ private fun BreakHeader(label: String) {
 
 // 移除分段中文（上午/下午/晚上）显示，仅保留“时间”+星期+日期
 @Composable
-private fun HeaderWithSegment(weekDates: List<String>) {
+private fun HeaderWithSegment(weekDates: List<String>, showWeekend: Boolean) {
     Column(
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier.fillMaxWidth()
         ) {
-            // 左侧时间列标题
+            // 左侧时间列占位（移除“时间”文字）
             Box(
                 modifier = Modifier
                     .width(40.dp)
                     .height(56.dp)
                     .background(
-                        MaterialTheme.colorScheme.surfaceVariant,
+                        Color.Transparent,
                         RoundedCornerShape(4.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "时间",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
+                    )
+            )
             Spacer(modifier = Modifier.width(2.dp))
-            // 星期列标题 - 直接显示所有7天，并在下方显示日期mm/dd
-            TimeTableData.weekDayNames.forEachIndexed { dayIndex, dayName ->
+            // 星期列标题 - 根据设置是否显示周末
+            val days = if (showWeekend) TimeTableData.weekDayNames else TimeTableData.weekDayNames.take(5)
+            days.forEachIndexed { dayIndex, dayName ->
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -657,7 +723,7 @@ private fun HeaderWithSegment(weekDates: List<String>) {
                         }
                     }
                 }
-                if (dayIndex < TimeTableData.weekDayNames.size - 1) {
+                if (dayIndex < days.size - 1) {
                     Spacer(modifier = Modifier.width(2.dp))
                 }
             }
