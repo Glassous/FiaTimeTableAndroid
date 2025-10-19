@@ -125,6 +125,13 @@ class WeekViewViewModel(private val repository: TimeTableRepository) : ViewModel
     }
 
     /**
+     * 回到本周（根据当前日期与选中学期起始日计算）
+     */
+    fun backToCurrentWeek() {
+        recomputeWeekAndDates()
+    }
+
+    /**
      * 切换到下一周
      */
     fun nextWeek() {
@@ -323,6 +330,56 @@ class WeekViewViewModel(private val repository: TimeTableRepository) : ViewModel
                 
             } catch (e: Exception) {
                 // 处理删除错误
+                e.printStackTrace()
+            }
+        }
+    }
+    
+    /**
+     * 新增课程：同一时间段不同周追加，不覆盖原有
+     */
+    fun addCourseInSameSlot(course: Course, dayIndex: Int, timeSlotIndex: Int) {
+        viewModelScope.launch {
+            try {
+                val currentData = _timeTableData.value
+                val currentTerm = _selectedTerm.value
+
+                val updatedCourses = currentData.courses.toMutableMap()
+                val termCourses = updatedCourses[currentTerm]?.toMutableMap() ?: mutableMapOf()
+                val dayCourses = termCourses[dayIndex]?.toMutableMap() ?: mutableMapOf()
+
+                // 在起始格追加课程
+                val existing = dayCourses[timeSlotIndex]
+                val newList = when (existing) {
+                    is List<*> -> {
+                        val typed = existing.filterIsInstance<Course>().toMutableList()
+                        typed.add(course)
+                        typed.toList()
+                    }
+                    else -> listOf(course)
+                }
+                dayCourses[timeSlotIndex] = newList
+
+                // 处理延续格：仅设置标准延续标记（严格遵守 DATA_STRUCTURE.md）
+                if (course.duration > 1) {
+                    for (i in 1 until course.duration) {
+                        val targetSlot = timeSlotIndex + i
+                        if (targetSlot < currentData.timeSlots.size) {
+                            dayCourses[targetSlot] = mapOf(
+                                "continued" to true,
+                                "fromSlot" to timeSlotIndex
+                            )
+                        }
+                    }
+                }
+
+                termCourses[dayIndex] = dayCourses
+                updatedCourses[currentTerm] = termCourses
+
+                val updatedData = currentData.copy(courses = updatedCourses)
+                _timeTableData.value = updatedData
+                repository.saveTimeTableData(updatedData)
+            } catch (e: Exception) {
                 e.printStackTrace()
             }
         }

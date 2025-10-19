@@ -86,21 +86,34 @@ fun WeekViewScreen() {
     var editingTimeSlotIndex by remember { mutableStateOf(0) }
     var editingCourse by remember { mutableStateOf<Course?>(null) }
     
+    // Bottom Sheet 状态
+    var showBottomSheet by remember { mutableStateOf(false) }
+    var bottomSheetDayIndex by remember { mutableStateOf(-1) }
+    var bottomSheetSlotIndex by remember { mutableStateOf(-1) }
+    var bottomSheetCourses by remember { mutableStateOf(listOf<Course>()) }
+    
+    // 区分新增/编辑模式
+    var isAddNew by remember { mutableStateOf(false) }
+    
     // 处理格子点击事件
     val handleCellClick = { dayIndex: Int, timeSlotIndex: Int ->
-        // 获取当前格子的课程（不按周过滤，便于编辑原始数据）
-        val currentCourses = timeTableData.courses[selectedTerm]?.get(dayIndex)?.get(timeSlotIndex)
-        
-        editingDayIndex = dayIndex
-        editingTimeSlotIndex = timeSlotIndex
-        editingCourse = when (currentCourses) {
-            is List<*> -> {
-                // 如果有课程，编辑第一个课程
-                currentCourses.filterIsInstance<Course>().firstOrNull()
+        val dayCourses = timeTableData.courses[selectedTerm]?.get(dayIndex)
+        val data = dayCourses?.get(timeSlotIndex)
+        val coursesAtSlot = when (data) {
+            is List<*> -> data.filterIsInstance<Course>()
+            is Map<*, *> -> {
+                if (data["continued"] == true) {
+                    val from = (data["fromSlot"] as? Number)?.toInt() ?: timeSlotIndex
+                    val origin = dayCourses?.get(from)
+                    if (origin is List<*>) origin.filterIsInstance<Course>() else emptyList()
+                } else emptyList()
             }
-            else -> null // 新建课程
+            else -> emptyList()
         }
-        showEditDialog = true
+        bottomSheetDayIndex = dayIndex
+        bottomSheetSlotIndex = timeSlotIndex
+        bottomSheetCourses = coursesAtSlot
+        showBottomSheet = true
     }
     
     Column(modifier = Modifier.fillMaxSize()) {
@@ -115,6 +128,9 @@ fun WeekViewScreen() {
                 }
                 IconButton(onClick = { viewModel.nextWeek() }) {
                     Icon(Icons.Default.ChevronRight, contentDescription = "下一周")
+                }
+                TextButton(onClick = { viewModel.backToCurrentWeek() }) {
+                    Text(text = "回到本周")
                 }
             }
         )
@@ -132,6 +148,71 @@ fun WeekViewScreen() {
         )
     }
     
+    // MD3 Bottom Sheet：显示该时间格的课程信息与操作
+    if (showBottomSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showBottomSheet = false }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                val dayName = TimeTableData.weekDayNames.getOrNull(bottomSheetDayIndex) ?: ""
+                val slotText = timeTableData.timeSlots.getOrNull(bottomSheetSlotIndex) ?: ""
+                Text(
+                    text = "$dayName · $slotText",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                if (bottomSheetCourses.isEmpty()) {
+                    Text(
+                        text = "本周此时间段无课程。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    bottomSheetCourses.forEach { course ->
+                        CourseBottomSheetItem(course = course)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = {
+                                // 编辑模式：若为延续格，定位到起始格
+                                val raw = timeTableData.courses[selectedTerm]?.get(bottomSheetDayIndex)?.get(bottomSheetSlotIndex)
+                                val originSlot = if (raw is Map<*, *> && raw["continued"] == true) {
+                                    (raw["fromSlot"] as? Number)?.toInt() ?: bottomSheetSlotIndex
+                                } else bottomSheetSlotIndex
+                                editingCourse = course
+                                editingDayIndex = bottomSheetDayIndex
+                                editingTimeSlotIndex = originSlot
+                                isAddNew = false
+                                showBottomSheet = false
+                                showEditDialog = true
+                            }) { Text("编辑") }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(onClick = {
+                    // 新增模式：若为延续格，定位到起始格
+                    val raw = timeTableData.courses[selectedTerm]?.get(bottomSheetDayIndex)?.get(bottomSheetSlotIndex)
+                    val originSlot = if (raw is Map<*, *> && raw["continued"] == true) {
+                        (raw["fromSlot"] as? Number)?.toInt() ?: bottomSheetSlotIndex
+                    } else bottomSheetSlotIndex
+                    editingCourse = null
+                    editingDayIndex = bottomSheetDayIndex
+                    editingTimeSlotIndex = originSlot
+                    isAddNew = true
+                    showBottomSheet = false
+                    showEditDialog = true
+                }, modifier = Modifier.fillMaxWidth()) {
+                    Text("新增课程")
+                }
+            }
+        }
+    }
+    
     // 课程编辑对话框
     if (showEditDialog) {
         CourseEditDialog(
@@ -143,8 +224,11 @@ fun WeekViewScreen() {
                 editingCourse = null
             },
             onSave = { course ->
-                // 保存课程到ViewModel
-                viewModel.saveCourse(course, editingDayIndex, editingTimeSlotIndex)
+                if (isAddNew) {
+                    viewModel.addCourseInSameSlot(course, editingDayIndex, editingTimeSlotIndex)
+                } else {
+                    viewModel.saveCourse(course, editingDayIndex, editingTimeSlotIndex)
+                }
                 showEditDialog = false
                 editingCourse = null
             }
@@ -167,16 +251,39 @@ private fun TimeTableGrid(
         val data = dayCourses[slotIndex] ?: return null
         return when (data) {
             is List<*> -> {
-                val course = data.filterIsInstance<Course>().firstOrNull()
-                if (course != null && course.selectedWeeks.contains(currentWeek)) data else null
+                val filtered = data.filterIsInstance<Course>().filter { it.selectedWeeks.contains(currentWeek) }
+                if (filtered.isNotEmpty()) filtered else null
             }
             is Map<*, *> -> {
                 if (data["continued"] == true) {
                     val from = (data["fromSlot"] as? Number)?.toInt() ?: slotIndex
                     val origin = dayCourses[from]
                     if (origin is List<*>) {
-                        val course = origin.filterIsInstance<Course>().firstOrNull()
-                        if (course != null && course.selectedWeeks.contains(currentWeek)) data else null
+                        val filtered = origin.filterIsInstance<Course>().filter { it.selectedWeeks.contains(currentWeek) }
+                        if (filtered.isNotEmpty()) data else null
+                    } else null
+                } else null
+            }
+            else -> null
+        }
+    }
+
+    // 当本周该格子没有课，但其他周存在课时，返回该课程（用于灰色占位显示）
+    fun cellForOtherWeeksCourse(dayIndex: Int, slotIndex: Int): Course? {
+        val dayCourses = courses[dayIndex] ?: return null
+        val data = dayCourses[slotIndex] ?: return null
+        return when (data) {
+            is List<*> -> {
+                val candidates = data.filterIsInstance<Course>().filter { !it.selectedWeeks.contains(currentWeek) }
+                candidates.firstOrNull()
+            }
+            is Map<*, *> -> {
+                if (data["continued"] == true) {
+                    val from = (data["fromSlot"] as? Number)?.toInt() ?: slotIndex
+                    val origin = dayCourses[from]
+                    if (origin is List<*>) {
+                        val candidates = origin.filterIsInstance<Course>().filter { !it.selectedWeeks.contains(currentWeek) }
+                        candidates.firstOrNull()
                     } else null
                 } else null
             }
@@ -271,6 +378,8 @@ private fun TimeTableGrid(
                             contentAlignment = Alignment.Center
                         ) {
                             val courseData = cellForWeek(dayIndex, timeSlotIndex)
+                            val rawData = courses[dayIndex]?.get(timeSlotIndex)
+                            val otherCourse = cellForOtherWeeksCourse(dayIndex, timeSlotIndex)
                             when (courseData) {
                                 is List<*> -> {
                                     val courseList = courseData.filterIsInstance<Course>()
@@ -281,39 +390,52 @@ private fun TimeTableGrid(
                                 }
                                 is Map<*, *> -> {
                                     if (courseData["continued"] == true) {
-                                        val courseColor = courseData["color"] as? String ?: "#2196F3"
-                                        val courseName = courseData["courseName"] as? String ?: ""
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .background(
-                                                    try {
-                                                        Color(android.graphics.Color.parseColor(courseColor)).copy(alpha = 0.8f)
-                                                    } catch (e: Exception) {
-                                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-                                                    }
-                                                ),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            if (courseName.isNotEmpty()) {
-                                                Text(
-                                                    text = courseName,
-                                                    color = Color.White,
-                                                    fontSize = 15.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    textAlign = TextAlign.Center,
-                                                    maxLines = 3,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    lineHeight = 17.sp,
-                                                    modifier = Modifier.padding(4.dp)
-                                                )
+                                        val from = (courseData["fromSlot"] as? Number)?.toInt() ?: timeSlotIndex
+                                        val origin = courses[dayIndex]?.get(from)
+                                        val courseForWeek = if (origin is List<*>) origin.filterIsInstance<Course>().firstOrNull { it.selectedWeeks.contains(currentWeek) } else null
+                                        if (courseForWeek != null) {
+                                            val courseColor = courseForWeek.color
+                                            val courseName = courseForWeek.courseName
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .background(
+                                                        try {
+                                                            Color(android.graphics.Color.parseColor(courseColor)).copy(alpha = 0.8f)
+                                                        } catch (e: Exception) {
+                                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                                                        }
+                                                    ),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                if (courseName.isNotEmpty()) {
+                                                    Text(
+                                                        text = courseName,
+                                                        color = Color.White,
+                                                        fontSize = 15.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        textAlign = TextAlign.Center,
+                                                        maxLines = 3,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        lineHeight = 17.sp,
+                                                        modifier = Modifier.padding(4.dp)
+                                                    )
+                                                }
                                             }
                                         }
                                     }
                                 }
                                 else -> {
-                                    // 空课程格：首次点击显示+号，二次点击触发添加；几秒后自动隐藏
-                                    EmptyCellPlus(onClick = { onCellClick(dayIndex, timeSlotIndex) })
+                                    // 当前周此格无课：如果其他周存在课，显示灰色占位，否则显示添加+号
+                                    if (otherCourse != null) {
+                                        if (rawData is Map<*, *> && rawData["continued"] == true) {
+                                            GrayContinuationCell()
+                                        } else {
+                                            GrayCourseContent(course = otherCourse, isMainCell = true)
+                                        }
+                                    } else {
+                                        EmptyCellPlus(onClick = { onCellClick(dayIndex, timeSlotIndex) })
+                                    }
                                 }
                             }
                         }
@@ -650,6 +772,80 @@ private fun ContinuationCell(colorHex: String) {
 }
 
 @Composable
+private fun GrayCourseContent(course: Course, isMainCell: Boolean = true) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+            .padding(4.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = course.courseName,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                fontSize = 15.sp,
+                lineHeight = 17.sp
+            )
+            if (course.room.isNotEmpty()) {
+                Text(
+                    text = course.room,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    fontSize = 13.sp,
+                    lineHeight = 15.sp
+                )
+            }
+            if (course.teacher.isNotEmpty()) {
+                Text(
+                    text = course.teacher,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    fontSize = 12.sp,
+                    lineHeight = 14.sp
+                )
+            }
+            if (isMainCell && course.duration > 1) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "${'$'}{course.duration}节",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Light
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GrayContinuationCell() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "…",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.labelLarge
+        )
+    }
+}
+
+@Composable
 private fun ObsoleteHeaderWithSegment(initialSegment: String) {
     val segmentLabel = when (initialSegment) {
         "morning" -> "上午"
@@ -711,6 +907,48 @@ private fun ObsoleteHeaderWithSegment(initialSegment: String) {
                     Spacer(modifier = Modifier.width(2.dp))
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun CourseBottomSheetItem(course: Course) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+            .padding(12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val colorBox = try {
+                Color(android.graphics.Color.parseColor(course.color))
+            } catch (_: Exception) {
+                MaterialTheme.colorScheme.primary
+            }
+            Box(
+                modifier = Modifier
+                    .size(14.dp)
+                    .background(colorBox, RoundedCornerShape(3.dp))
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = course.courseName,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Medium
+            )
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        val info = listOfNotNull(
+            course.room.takeIf { it.isNotEmpty() },
+            course.teacher.takeIf { it.isNotEmpty() },
+            course.weeksRange.takeIf { it.isNotEmpty() }
+        ).joinToString(" · ")
+        if (info.isNotEmpty()) {
+            Text(
+                text = info,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
