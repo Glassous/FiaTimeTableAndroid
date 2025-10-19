@@ -11,6 +11,7 @@ import kotlinx.coroutines.launch
 import com.glassous.fiatimetable.data.model.TimeTableData
 import com.glassous.fiatimetable.data.repository.TimeTableRepository
 import com.glassous.fiatimetable.data.model.Course
+import com.glassous.fiatimetable.data.model.OnlineCourse
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -558,6 +559,70 @@ class WeekViewViewModel(private val repository: TimeTableRepository) : ViewModel
             selectedTerm = "2024-2025学年第一学期",
             theme = "system"
         )
+    }
+
+    // 在线选修课：新增
+    fun addOnlineCourse(course: OnlineCourse) {
+        viewModelScope.launch {
+            try {
+                val currentData = _timeTableData.value
+                val currentTerm = _selectedTerm.value
+                val updatedOnline = currentData.onlineCourses.toMutableMap()
+                val termList = updatedOnline[currentTerm]?.toMutableList() ?: mutableListOf()
+                // 保证ID唯一：若冲突则替换，否则追加
+                val idx = termList.indexOfFirst { it.id == course.id }
+                if (idx >= 0) termList[idx] = course else termList.add(course)
+                updatedOnline[currentTerm] = termList
+                val updatedData = currentData.copy(onlineCourses = updatedOnline)
+                _timeTableData.value = updatedData
+                repository.saveTimeTableData(updatedData)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // 在线选修课：更新
+    fun updateOnlineCourse(course: OnlineCourse) {
+        viewModelScope.launch {
+            try {
+                val currentData = _timeTableData.value
+                val currentTerm = _selectedTerm.value
+                val updatedOnline = currentData.onlineCourses.toMutableMap()
+                val termList = updatedOnline[currentTerm]?.toMutableList() ?: mutableListOf()
+                val idx = termList.indexOfFirst { it.id == course.id }
+                if (idx >= 0) {
+                    termList[idx] = course
+                } else {
+                    termList.add(course)
+                }
+                updatedOnline[currentTerm] = termList
+                val updatedData = currentData.copy(onlineCourses = updatedOnline)
+                _timeTableData.value = updatedData
+                repository.saveTimeTableData(updatedData)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // 在线选修课：删除
+    fun deleteOnlineCourse(id: String) {
+        viewModelScope.launch {
+            try {
+                val currentData = _timeTableData.value
+                val currentTerm = _selectedTerm.value
+                val updatedOnline = currentData.onlineCourses.toMutableMap()
+                val termList = updatedOnline[currentTerm]?.toMutableList() ?: mutableListOf()
+                val filtered = termList.filter { it.id != id }
+                updatedOnline[currentTerm] = filtered
+                val updatedData = currentData.copy(onlineCourses = updatedOnline)
+                _timeTableData.value = updatedData
+                repository.saveTimeTableData(updatedData)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 }
 

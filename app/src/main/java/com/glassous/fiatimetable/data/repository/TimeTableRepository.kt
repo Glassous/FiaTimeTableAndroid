@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import com.glassous.fiatimetable.data.model.*
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.google.gson.JsonParser
 
 /**
  * 课程表数据仓库
@@ -179,4 +180,188 @@ class TimeTableRepository(context: Context) {
             .clear()
             .apply()
     }
+}
+
+// 备份导出时间段结构
+data class BackupTimeSlot(val start: String, val end: String, val period: String)
+
+// 导出为备份 JSON（完全兼容示例文件）
+fun exportBackupJson(repo: TimeTableRepository): String {
+    val gson = Gson()
+    val data = repo.getTimeTableData()
+    val exportDate = java.time.Instant.now().toString()
+
+    // 转换 timeSlots 为对象数组
+    fun classifyPeriod(start: String): String {
+        val hour = start.substringBefore(":").toIntOrNull() ?: 0
+        return when {
+            hour < 12 -> "上午"
+            hour < 18 -> "下午"
+            else -> "晚上"
+        }
+    }
+    val timeSlotsObj = data.timeSlots.map { slot ->
+        val normalized = slot.replace("~", "-")
+        val start = normalized.substringBefore("-")
+        val end = normalized.substringAfter("-")
+        BackupTimeSlot(start = start, end = end, period = classifyPeriod(start))
+    }
+
+    // 转换 courses：每个节次导出为一个课程对象（忽略 continued 标记）
+    val coursesExport = mutableMapOf<String, MutableMap<Int, MutableMap<Int, Map<String, Any>>>>()
+    data.courses.forEach { (term, days) ->
+        val dayMap = mutableMapOf<Int, MutableMap<Int, Map<String, Any>>>()
+        days.forEach { (dayIndex, slots) ->
+            val slotMap = mutableMapOf<Int, Map<String, Any>>()
+            slots.forEach { (slotIndex, value) ->
+                when (value) {
+                    is List<*> -> {
+                        val first = value.firstOrNull()
+                        if (first is Course) {
+                            val courseObj = mapOf(
+                                "courseName" to first.courseName,
+                                "courseType" to first.courseType,
+                                "duration" to first.duration,
+                                "weeksRange" to first.weeksRange,
+                                "selectedWeeks" to first.selectedWeeks,
+                                "color" to first.color,
+                                // 教学信息
+                                "teacher" to first.teacher,
+                                "room" to first.room,
+                                "notes" to first.notes,
+                                // 详细信息
+                                "courseCode" to first.courseCode,
+                                "shortName" to first.shortName,
+                                "courseNameEn" to first.courseNameEn,
+                                "credits" to first.credits,
+                                "department" to first.department,
+                                "teachingGroup" to first.teachingGroup,
+                                "leader" to first.leader,
+                                "courseAttr" to first.courseAttr,
+                                "assessType" to first.assessType,
+                                "examType" to first.examType,
+                                "classroomType" to first.classroomType,
+                                "totalHours" to first.totalHours,
+                                "referenceBooks" to first.referenceBooks,
+                                "capacity" to first.capacity,
+                                "enrolled" to first.enrolled,
+                                // 冗余位置信息，兼容备份模板
+                                "day" to (dayIndex + 1),
+                                "slotIndex" to slotIndex
+                            )
+                            slotMap[slotIndex] = courseObj
+                        }
+                    }
+                    // 其他（continued）不导出
+                }
+            }
+            dayMap[dayIndex] = slotMap
+        }
+        coursesExport[term] = dayMap
+    }
+
+    // 构造备份数据结构
+    val backupRoot = mapOf(
+        "version" to "1.0",
+        "exportDate" to exportDate,
+        "data" to mapOf(
+            "terms" to data.terms,
+            "courses" to coursesExport,
+            "timeSlots" to timeSlotsObj,
+            "selectedTerm" to data.selectedTerm,
+            "theme" to data.theme,
+            "onlineCourses" to data.onlineCourses
+        )
+    )
+    return gson.toJson(backupRoot)
+}
+
+// 从备份 JSON 导入为内部数据结构（完全兼容示例文件）
+fun importBackupJson(json: String): TimeTableData {
+    val gson = Gson()
+    val root = JsonParser.parseString(json).asJsonObject
+    val dataObj = root.getAsJsonObject("data")
+
+    // terms
+    val terms: List<Term> = gson.fromJson(
+        dataObj.get("terms"), object : com.google.gson.reflect.TypeToken<List<Term>>() {}.type
+    )
+
+    // selectedTerm & theme
+    val selectedTerm = dataObj.get("selectedTerm")?.asString ?: terms.firstOrNull()?.name ?: ""
+    val theme = dataObj.get("theme")?.asString ?: "system"
+
+    // timeSlots: 对象数组 -> 字符串 "HH:mm-HH:mm"
+    val timeSlotsMaps: List<Map<String, String>> = gson.fromJson(
+        dataObj.get("timeSlots"), object : com.google.gson.reflect.TypeToken<List<Map<String, String>>>() {}.type
+    )
+    val timeSlots: List<String> = timeSlotsMaps.map { m ->
+        val start = m["start"] ?: "00:00"
+        val end = m["end"] ?: "00:00"
+        "$start-$end"
+    }
+
+    // onlineCourses：id 可能为数字，统一转为字符串；credits 兼容小数
+    val onlineCoursesRaw: Map<String, List<Map<String, Any>>> = gson.fromJson(
+        dataObj.get("onlineCourses"), object : com.google.gson.reflect.TypeToken<Map<String, List<Map<String, Any>>>>() {}.type
+    ) ?: emptyMap()
+    val onlineCourses: Map<String, List<OnlineCourse>> = onlineCoursesRaw.mapValues { (_, list) ->
+        list.map { oc ->
+            OnlineCourse(
+                id = oc["id"]?.toString() ?: java.util.UUID.randomUUID().toString(),
+                courseName = (oc["courseName"] as? String) ?: "",
+                teacher = (oc["teacher"] as? String) ?: "",
+                platform = (oc["platform"] as? String) ?: "",
+                url = (oc["url"] as? String) ?: "",
+                startWeek = ((oc["startWeek"] as? Number)?.toInt()) ?: 1,
+                endWeek = ((oc["endWeek"] as? Number)?.toInt()) ?: 16,
+                credits = (oc["credits"] as? Number)?.toDouble(),
+                notes = (oc["notes"] as? String) ?: ""
+            )
+        }
+    }
+
+    // courses：按示例结构构造 -> 内部结构：List<Course> 或 continued 标记
+    val coursesRaw: Map<String, Map<String, Map<String, Any>>> = gson.fromJson(
+        dataObj.get("courses"), object : com.google.gson.reflect.TypeToken<Map<String, Map<String, Map<String, Any>>>>() {}.type
+    ) ?: emptyMap()
+
+    val courses: MutableMap<String, MutableMap<Int, MutableMap<Int, Any>>> = mutableMapOf()
+    coursesRaw.forEach { (term, daysStr) ->
+        val dayMap: MutableMap<Int, MutableMap<Int, Any>> = mutableMapOf()
+        daysStr.forEach { (dayKey, slotsStr) ->
+            val dayIndex = dayKey.toIntOrNull() ?: 0
+            val slotMap: MutableMap<Int, Any> = mutableMapOf()
+            slotsStr.forEach { (slotKey, slotVal) ->
+                val slotIndex = slotKey.toIntOrNull() ?: 0
+                // slotVal 是课程对象；转成 Course
+                val courseJson = gson.toJson(slotVal)
+                val course = try { gson.fromJson(courseJson, Course::class.java) } catch (_: Exception) { null }
+                if (course != null) {
+                    slotMap[slotIndex] = listOf(course)
+                    // 根据 duration 添加 continued
+                    for (i in 1 until course.duration) {
+                        val target = slotIndex + i
+                        slotMap[target] = mapOf(
+                            "continued" to true,
+                            "color" to course.color,
+                            "fromSlot" to slotIndex,
+                            "courseName" to course.courseName
+                        )
+                    }
+                }
+            }
+            dayMap[dayIndex] = slotMap
+        }
+        courses[term] = dayMap
+    }
+
+    return TimeTableData(
+        terms = terms,
+        courses = courses,
+        onlineCourses = onlineCourses,
+        timeSlots = timeSlots,
+        selectedTerm = selectedTerm,
+        theme = theme
+    )
 }

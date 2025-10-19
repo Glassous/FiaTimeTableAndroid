@@ -157,6 +157,22 @@ class SettingsViewModel(private val repository: TimeTableRepository) : ViewModel
         _afternoonSlots.value = afternoon
         _eveningSlots.value = evening
     }
+
+    // 备份导出：返回 JSON 字符串
+    fun exportBackupJson(): String {
+        return com.glassous.fiatimetable.data.repository.exportBackupJson(repository)
+    }
+
+    // 备份导入：从 JSON 字符串恢复并保存到仓库，然后刷新本地状态
+    fun importBackupJson(json: String) {
+        viewModelScope.launch {
+            val data = com.glassous.fiatimetable.data.repository.importBackupJson(json)
+            repository.saveTimeTableData(data)
+            _terms.value = data.terms
+            _selectedTerm.value = data.selectedTerm
+            classifySlots(data.timeSlots)
+        }
+    }
 }
 
 class SettingsViewModelFactory(private val context: Context) : ViewModelProvider.Factory {

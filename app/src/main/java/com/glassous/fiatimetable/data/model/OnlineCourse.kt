@@ -18,6 +18,6 @@ data class OnlineCourse(
     val endWeek: Int = 16,                  // 结束周次
     
     // 其他信息
-    val credits: Int? = null,               // 学分
+    val credits: Double? = null,             // 学分（允许小数）
     val notes: String = ""                  // 备注信息
 )

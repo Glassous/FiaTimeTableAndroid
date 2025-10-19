@@ -33,6 +33,8 @@ import com.glassous.fiatimetable.data.model.TimeTableData
 import com.glassous.fiatimetable.ui.viewmodel.WeekViewViewModel
 import com.glassous.fiatimetable.ui.viewmodel.WeekViewViewModelFactory
 import com.glassous.fiatimetable.ui.dialog.CourseEditDialog
+import com.glassous.fiatimetable.ui.dialog.OnlineCourseEditDialog
+import com.glassous.fiatimetable.data.model.OnlineCourse
 
 /**
  * 周视图屏幕 - 课程表主界面
@@ -85,6 +87,10 @@ fun WeekViewScreen() {
     var editingDayIndex by remember { mutableStateOf(0) }
     var editingTimeSlotIndex by remember { mutableStateOf(0) }
     var editingCourse by remember { mutableStateOf<Course?>(null) }
+
+    // 网络选修课对话框状态
+    var showOnlineCourseDialog by remember { mutableStateOf(false) }
+    var editingOnlineCourse by remember { mutableStateOf<OnlineCourse?>(null) }
     
     // Bottom Sheet 状态
     var showBottomSheet by remember { mutableStateOf(false) }
@@ -100,6 +106,10 @@ fun WeekViewScreen() {
     var deletingCourse by remember { mutableStateOf<Course?>(null) }
     var deleteDayIndex by remember { mutableStateOf(0) }
     var deleteSlotIndex by remember { mutableStateOf(0) }
+
+    // 网络选修课删除确认状态
+    var showOnlineDeleteConfirm by remember { mutableStateOf(false) }
+    var deletingOnlineCourse by remember { mutableStateOf<OnlineCourse?>(null) }
     
     // 处理格子点击事件
     val handleCellClick = { dayIndex: Int, timeSlotIndex: Int ->
@@ -147,7 +157,20 @@ fun WeekViewScreen() {
             courses = timeTableData.courses[selectedTerm] ?: emptyMap(), 
             weekDates = weekDates,
             currentWeek = currentWeek,
+            onlineCourses = timeTableData.onlineCourses[selectedTerm] ?: emptyList(),
             onCellClick = handleCellClick,
+            onAddOnlineCourse = {
+                editingOnlineCourse = null
+                showOnlineCourseDialog = true
+            },
+            onEditOnlineCourse = { course ->
+                editingOnlineCourse = course
+                showOnlineCourseDialog = true
+            },
+            onDeleteOnlineCourse = { course ->
+                deletingOnlineCourse = course
+                showOnlineDeleteConfirm = true
+            },
             modifier = Modifier
                 .fillMaxSize()
                 .padding(8.dp)
@@ -289,6 +312,47 @@ fun WeekViewScreen() {
             }
         )
     }
+
+    // 网络选修课编辑对话框
+    if (showOnlineCourseDialog) {
+        val termWeeks = timeTableData.terms.find { it.name == selectedTerm }?.weeks ?: 16
+        OnlineCourseEditDialog(
+            course = editingOnlineCourse,
+            termWeeks = termWeeks,
+            onDismiss = {
+                showOnlineCourseDialog = false
+                editingOnlineCourse = null
+            },
+            onSave = { oc ->
+                if (editingOnlineCourse == null) {
+                    viewModel.addOnlineCourse(oc)
+                } else {
+                    viewModel.updateOnlineCourse(oc)
+                }
+                showOnlineCourseDialog = false
+                editingOnlineCourse = null
+            }
+        )
+    }
+    if (showOnlineDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showOnlineDeleteConfirm = false },
+            title = { Text("删除网络选修课") },
+            text = { Text("确认删除该网络选修课？此操作不可恢复。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    deletingOnlineCourse?.let { oc ->
+                        viewModel.deleteOnlineCourse(oc.id)
+                    }
+                    showOnlineDeleteConfirm = false
+                    deletingOnlineCourse = null
+                }) { Text("删除") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showOnlineDeleteConfirm = false }) { Text("取消") }
+            }
+        )
+    }
 }
 
 @Composable
@@ -297,7 +361,11 @@ private fun TimeTableGrid(
     courses: Map<Int, Map<Int, Any>>, 
     weekDates: List<String>,
     currentWeek: Int,
+    onlineCourses: List<OnlineCourse>,
     onCellClick: (Int, Int) -> Unit,
+    onAddOnlineCourse: () -> Unit,
+    onEditOnlineCourse: (OnlineCourse) -> Unit,
+    onDeleteOnlineCourse: (OnlineCourse) -> Unit,
     modifier: Modifier = Modifier
 ) {
     // 过滤函数：根据当前周返回该格子的有效数据
@@ -497,6 +565,17 @@ private fun TimeTableGrid(
                     }
                 }
             }
+        }
+        // 在课程表下方增加网络选修课模块
+        item { Spacer(modifier = Modifier.height(12.dp)) }
+        item {
+            OnlineCoursesSection(
+                onlineCourses = onlineCourses,
+                currentWeek = currentWeek,
+                onAdd = onAddOnlineCourse,
+                onEdit = onEditOnlineCourse,
+                onDelete = onDeleteOnlineCourse
+            )
         }
     }
 }
@@ -1004,6 +1083,97 @@ private fun CourseBottomSheetItem(course: Course) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+@Composable
+private fun OnlineCoursesSection(
+    onlineCourses: List<OnlineCourse>,
+    currentWeek: Int,
+    onAdd: () -> Unit,
+    onEdit: (OnlineCourse) -> Unit,
+    onDelete: (OnlineCourse) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = "网络选修课",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(onClick = onAdd) {
+                Icon(Icons.Default.Add, contentDescription = "新增网络选修课")
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        if (onlineCourses.isEmpty()) {
+            Text(
+                text = "暂无网络选修课",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                onlineCourses.forEach { oc ->
+                    val isActiveThisWeek = currentWeek in oc.startWeek..oc.endWeek
+                    Card {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            // 课程名及本周标记
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = oc.courseName,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                if (isActiveThisWeek) {
+                                    AssistChip(onClick = {}, label = { Text("本周") })
+                                }
+                            }
+                            // 教师 / 平台
+                            val teacherText = oc.teacher.takeIf { it.isNotBlank() } ?: ""
+                            val platformText = oc.platform.takeIf { it.isNotBlank() } ?: ""
+                            if (teacherText.isNotBlank() || platformText.isNotBlank()) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = listOfNotNull(
+                                        teacherText.takeIf { it.isNotBlank() }?.let { "教师：$it" },
+                                        platformText.takeIf { it.isNotBlank() }?.let { "平台：$it" }
+                                    ).joinToString("  •  "),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            // 网址
+                            if (oc.url.isNotBlank()) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "网址：${oc.url}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    maxLines = 1
+                                )
+                            }
+                            // 周次范围
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "周次：${oc.startWeek}-${oc.endWeek}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(onClick = { onEdit(oc) }) { Text("编辑") }
+                                OutlinedButton(onClick = { onDelete(oc) }) { Text("删除") }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

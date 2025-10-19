@@ -21,6 +21,7 @@ import com.glassous.fiatimetable.ui.viewmodel.SettingsViewModel
 import com.glassous.fiatimetable.ui.viewmodel.SettingsViewModelFactory
 import java.time.Instant
 import java.time.ZoneId
+import java.time.LocalDate
 
 // 新增导入
 import androidx.compose.ui.draw.scale
@@ -28,6 +29,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.alpha
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -205,6 +208,75 @@ fun SettingsScreen() {
                     }
                 }
             }
+
+            // 数据备份与恢复（导入/导出）
+            item {
+                Card {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(text = "数据备份与恢复", style = MaterialTheme.typography.titleMedium)
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        var backupMessage by remember { mutableStateOf<String?>(null) }
+
+                        val exportLauncher = rememberLauncherForActivityResult(
+                            contract = ActivityResultContracts.CreateDocument("application/json")
+                        ) { uri ->
+                            if (uri != null) {
+                                val json = viewModel.exportBackupJson()
+                                try {
+                                    context.contentResolver.openOutputStream(uri)?.use { out ->
+                                        out.write(json.toByteArray())
+                                    }
+                                    backupMessage = "导出成功"
+                                } catch (e: Exception) {
+                                    backupMessage = "导出失败：${e.message ?: "未知错误"}"
+                                }
+                            }
+                        }
+
+                        val importLauncher = rememberLauncherForActivityResult(
+                            contract = ActivityResultContracts.OpenDocument()
+                        ) { uri ->
+                            if (uri != null) {
+                                try {
+                                    val text = context.contentResolver.openInputStream(uri)?.bufferedReader().use { it?.readText() }
+                                    if (!text.isNullOrBlank()) {
+                                        viewModel.importBackupJson(text)
+                                        backupMessage = "导入成功"
+                                    } else {
+                                        backupMessage = "导入失败：文件为空"
+                                    }
+                                } catch (e: Exception) {
+                                    backupMessage = "导入失败：${e.message ?: "未知错误"}"
+                                }
+                            }
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = {
+                                val filename = "timetable-backup-${LocalDate.now()}.json"
+                                exportLauncher.launch(filename)
+                            }) {
+                                Icon(Icons.Default.Settings, contentDescription = null)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("导出课程")
+                            }
+                            OutlinedButton(onClick = {
+                                importLauncher.launch(arrayOf("application/json", "text/*"))
+                            }) {
+                                Icon(Icons.Default.Add, contentDescription = null)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("导入课程")
+                            }
+                        }
+
+                        if (backupMessage != null) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(backupMessage!!, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -230,57 +302,39 @@ private fun TimeSlotsSection(
     onAdd: (String) -> Unit,
     onRemove: (Int) -> Unit
 ) {
-    Text(text = title, style = MaterialTheme.typography.titleSmall)
-    Spacer(modifier = Modifier.height(4.dp))
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        var showAddDialog by remember { mutableStateOf(false) }
-        FilledTonalButton(onClick = { showAddDialog = true }) {
-            Icon(Icons.Default.Add, contentDescription = null)
-            Spacer(modifier = Modifier.width(4.dp))
-            Text("添加时间段")
-        }
-        if (showAddDialog) {
-            AddSlotDialog(
-                title = title,
-                onDismiss = { showAddDialog = false },
-                onConfirm = { sh, sm, eh, em ->
-                    val slot = "%02d:%02d-%02d:%02d".format(sh, sm, eh, em)
-                    onAdd(slot)
-                    showAddDialog = false
-                }
-            )
-        }
-
+    Column {
+        Text(text = title, style = MaterialTheme.typography.titleSmall)
+        Spacer(modifier = Modifier.height(6.dp))
         slots.forEachIndexed { index, slot ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(text = slot, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = slot, modifier = Modifier.weight(1f))
                 IconButton(onClick = { onRemove(index) }) {
-                    Icon(Icons.Default.Delete, contentDescription = "删除")
+                    Icon(Icons.Default.Delete, contentDescription = null)
                 }
             }
         }
-
-        if (slots.isEmpty()) {
-            Text(
-                text = "暂无时间段",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Start
-            )
+        Spacer(modifier = Modifier.height(8.dp))
+        var showAdd by remember { mutableStateOf(false) }
+        OutlinedButton(onClick = { showAdd = true }) {
+            Icon(Icons.Default.Add, contentDescription = null)
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("添加时间段")
+        }
+        if (showAdd) {
+            AddSlotDialog(title = "添加 $title 时间段", onDismiss = { showAdd = false }, onConfirm = { sh, sm, eh, em ->
+                val value = "%02d:%02d-%02d:%02d".format(sh, sm, eh, em)
+                if (isValidSlotFormat(value)) {
+                    onAdd(value)
+                    showAdd = false
+                }
+            })
         }
     }
 }
 
 private fun isValidSlotFormat(value: String): Boolean {
-    return try {
-        val parts = value.split(":", "-")
-        parts.size == 6 &&
-                parts[0].toInt() in 0..23 && parts[1].toInt() in 0..59 &&
-                parts[2].toInt() in 0..23 && parts[3].toInt() in 0..59
-    } catch (_: Exception) { false }
+    val regex = Regex("^\\d{2}:\\d{2}-\\d{2}:\\d{2}$")
+    return regex.matches(value)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -290,38 +344,38 @@ private fun AddSlotDialog(
     onDismiss: () -> Unit,
     onConfirm: (startHour: Int, startMinute: Int, endHour: Int, endMinute: Int) -> Unit
 ) {
-    val startState = rememberTimePickerState(is24Hour = true)
-    val endState = rememberTimePickerState(is24Hour = true)
+    var startHour by remember { mutableStateOf("08") }
+    var startMinute by remember { mutableStateOf("00") }
+    var endHour by remember { mutableStateOf("08") }
+    var endMinute by remember { mutableStateOf("45") }
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth(0.9f)
-                .padding(16.dp),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier
-                    .padding(16.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                Text(text = "添加 $title 时间段", style = MaterialTheme.typography.titleMedium)
-                Text(text = "开始时间")
-                TimePicker(state = startState, modifier = Modifier.scale(0.85f))
-                Text(text = "结束时间")
-                TimePicker(state = endState, modifier = Modifier.scale(0.85f))
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onDismiss) { Text("取消") }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    TextButton(onClick = {
-                        onConfirm(startState.hour, startState.minute, endState.hour, endState.minute)
-                    }) { Text("添加") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("输入格式：HH:mm-HH:mm，如 08:00-08:45")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = startHour, onValueChange = { startHour = it.filter { c -> c.isDigit() }.take(2) }, label = { Text("开始小时") })
+                    OutlinedTextField(value = startMinute, onValueChange = { startMinute = it.filter { c -> c.isDigit() }.take(2) }, label = { Text("开始分钟") })
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = endHour, onValueChange = { endHour = it.filter { c -> c.isDigit() }.take(2) }, label = { Text("结束小时") })
+                    OutlinedTextField(value = endMinute, onValueChange = { endMinute = it.filter { c -> c.isDigit() }.take(2) }, label = { Text("结束分钟") })
                 }
             }
-        }
-    }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val sh = startHour.toIntOrNull() ?: 8
+                val sm = startMinute.toIntOrNull() ?: 0
+                val eh = endHour.toIntOrNull() ?: 8
+                val em = endMinute.toIntOrNull() ?: 45
+                onConfirm(sh, sm, eh, em)
+            }) { Text("确认") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -333,218 +387,79 @@ private fun QuickSetupDialog(
     currentEveningSlots: List<String>,
     onApply: (morning: List<String>, afternoon: List<String>, evening: List<String>) -> Unit
 ) {
-    val scrollState = rememberScrollState()
+    var h by remember { mutableStateOf("08") }
+    var m by remember { mutableStateOf("00") }
+    var d by remember { mutableStateOf("45") }
+    var b by remember { mutableStateOf("10") }
+    var c by remember { mutableStateOf("4") }
 
-    // 从当前数据计算初始值
-    fun parseStartHM(slot: String): Pair<Int, Int>? = try {
-        val start = slot.substringBefore("-")
-        val h = start.substringBefore(":").toInt()
-        val m = start.substringAfter(":").toInt()
-        h to m
-    } catch (_: Exception) { null }
+    var morningChecked by remember { mutableStateOf(true) }
+    var afternoonChecked by remember { mutableStateOf(true) }
+    var eveningChecked by remember { mutableStateOf(false) }
 
-    fun parseDuration(slot: String): Int? = try {
-        val start = slot.substringBefore("-")
-        val end = slot.substringAfter("-")
-        val sh = start.substringBefore(":").toInt()
-        val sm = start.substringAfter(":").toInt()
-        val eh = end.substringBefore(":").toInt()
-        val em = end.substringAfter(":").toInt()
-        (eh * 60 + em) - (sh * 60 + sm)
-    } catch (_: Exception) { null }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("快捷生成时间段") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("将按规则自动生成并替换对应时段的时间表")
 
-    fun parseBreak(first: String, second: String): Int? = try {
-        val end1 = first.substringAfter("-")
-        val start2 = second.substringBefore("-")
-        val e1h = end1.substringBefore(":").toInt()
-        val e1m = end1.substringAfter(":").toInt()
-        val s2h = start2.substringBefore(":").toInt()
-        val s2m = start2.substringAfter(":").toInt()
-        (s2h * 60 + s2m) - (e1h * 60 + e1m)
-    } catch (_: Exception) { null }
-
-    val mHM = parseStartHM(currentMorningSlots.firstOrNull() ?: "08:00-08:45") ?: (8 to 0)
-    val aHM = parseStartHM(currentAfternoonSlots.firstOrNull() ?: "14:00-14:45") ?: (14 to 0)
-    val eHM = parseStartHM(currentEveningSlots.firstOrNull() ?: "19:00-19:45") ?: (19 to 0)
-
-    val mDurInit = parseDuration(currentMorningSlots.firstOrNull() ?: "08:00-08:45") ?: 45
-    val aDurInit = parseDuration(currentAfternoonSlots.firstOrNull() ?: "14:00-14:45") ?: 45
-    val eDurInit = parseDuration(currentEveningSlots.firstOrNull() ?: "19:00-19:45") ?: 45
-
-    val mBreakInit = if (currentMorningSlots.size >= 2) {
-        parseBreak(currentMorningSlots[0], currentMorningSlots[1]) ?: 10
-    } else 10
-    val aBreakInit = if (currentAfternoonSlots.size >= 2) {
-        parseBreak(currentAfternoonSlots[0], currentAfternoonSlots[1]) ?: 10
-    } else 10
-    val eBreakInit = if (currentEveningSlots.size >= 2) {
-        parseBreak(currentEveningSlots[0], currentEveningSlots[1]) ?: 10
-    } else 10
-
-    val mCountInit = (if (currentMorningSlots.isNotEmpty()) currentMorningSlots.size else 4)
-    val aCountInit = (if (currentAfternoonSlots.isNotEmpty()) currentAfternoonSlots.size else 4)
-    val eCountInit = (if (currentEveningSlots.isNotEmpty()) currentEveningSlots.size else 2)
-
-    val morningStartState = rememberTimePickerState(is24Hour = true, initialHour = mHM.first, initialMinute = mHM.second)
-    val afternoonStartState = rememberTimePickerState(is24Hour = true, initialHour = aHM.first, initialMinute = aHM.second)
-    val eveningStartState = rememberTimePickerState(is24Hour = true, initialHour = eHM.first, initialMinute = eHM.second)
-
-    var morningDuration by remember { mutableStateOf(mDurInit.toString()) }
-    var morningBreak by remember { mutableStateOf(mBreakInit.toString()) }
-    var morningCount by remember { mutableStateOf(mCountInit.toString()) }
-
-    var afternoonDuration by remember { mutableStateOf(aDurInit.toString()) }
-    var afternoonBreak by remember { mutableStateOf(aBreakInit.toString()) }
-    var afternoonCount by remember { mutableStateOf(aCountInit.toString()) }
-
-    var eveningDuration by remember { mutableStateOf(eDurInit.toString()) }
-    var eveningBreak by remember { mutableStateOf(eBreakInit.toString()) }
-    var eveningCount by remember { mutableStateOf(eCountInit.toString()) }
-
-    var morningEnabled by remember { mutableStateOf(true) }
-    var afternoonEnabled by remember { mutableStateOf(true) }
-    var eveningEnabled by remember { mutableStateOf(true) }
-
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth(0.95f)
-                .fillMaxHeight(0.9f)
-                .padding(16.dp),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                Text("上课时间快捷设置", style = MaterialTheme.typography.titleMedium)
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Column(modifier = Modifier.weight(1f).verticalScroll(scrollState)) {
-                    // 早上
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("早上", modifier = Modifier.weight(1f))
-                        Switch(checked = morningEnabled, onCheckedChange = { morningEnabled = it })
-                    }
-                    TimePicker(state = morningStartState, modifier = Modifier.scale(0.85f).alpha(if (morningEnabled) 1f else 0.5f))
-                    OutlinedTextField(
-                        value = morningDuration,
-                        onValueChange = { morningDuration = it },
-                        label = { Text("每节时长(分钟)") },
-                        enabled = morningEnabled
-                    )
-                    OutlinedTextField(
-                        value = morningBreak,
-                        onValueChange = { morningBreak = it },
-                        label = { Text("间隔(分钟)") },
-                        enabled = morningEnabled
-                    )
-                    OutlinedTextField(
-                        value = morningCount,
-                        onValueChange = { morningCount = it },
-                        label = { Text("节数") },
-                        enabled = morningEnabled
-                    )
-                    Divider()
-
-                    // 下午
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("下午", modifier = Modifier.weight(1f))
-                        Switch(checked = afternoonEnabled, onCheckedChange = { afternoonEnabled = it })
-                    }
-                    TimePicker(state = afternoonStartState, modifier = Modifier.scale(0.85f).alpha(if (afternoonEnabled) 1f else 0.5f))
-                    OutlinedTextField(
-                        value = afternoonDuration,
-                        onValueChange = { afternoonDuration = it },
-                        label = { Text("每节时长(分钟)") },
-                        enabled = afternoonEnabled
-                    )
-                    OutlinedTextField(
-                        value = afternoonBreak,
-                        onValueChange = { afternoonBreak = it },
-                        label = { Text("间隔(分钟)") },
-                        enabled = afternoonEnabled
-                    )
-                    OutlinedTextField(
-                        value = afternoonCount,
-                        onValueChange = { afternoonCount = it },
-                        label = { Text("节数") },
-                        enabled = afternoonEnabled
-                    )
-                    Divider()
-
-                    // 晚上
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("晚上", modifier = Modifier.weight(1f))
-                        Switch(checked = eveningEnabled, onCheckedChange = { eveningEnabled = it })
-                    }
-                    TimePicker(state = eveningStartState, modifier = Modifier.scale(0.85f).alpha(if (eveningEnabled) 1f else 0.5f))
-                    OutlinedTextField(
-                        value = eveningDuration,
-                        onValueChange = { eveningDuration = it },
-                        label = { Text("每节时长(分钟)") },
-                        enabled = eveningEnabled
-                    )
-                    OutlinedTextField(
-                        value = eveningBreak,
-                        onValueChange = { eveningBreak = it },
-                        label = { Text("间隔(分钟)") },
-                        enabled = eveningEnabled
-                    )
-                    OutlinedTextField(
-                        value = eveningCount,
-                        onValueChange = { eveningCount = it },
-                        label = { Text("节数") },
-                        enabled = eveningEnabled
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = morningChecked, onCheckedChange = { morningChecked = it })
+                    Text("上午")
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = afternoonChecked, onCheckedChange = { afternoonChecked = it })
+                    Text("下午")
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = eveningChecked, onCheckedChange = { eveningChecked = it })
+                    Text("晚上")
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onDismiss) { Text("取消") }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    TextButton(onClick = {
-                        val mSlots = if (morningEnabled) genSlots(
-                            morningStartState.hour,
-                            morningStartState.minute,
-                            morningDuration.toIntOrNull() ?: 45,
-                            morningBreak.toIntOrNull() ?: 10,
-                            morningCount.toIntOrNull() ?: 4
-                        ) else emptyList()
-                        val aSlots = if (afternoonEnabled) genSlots(
-                            afternoonStartState.hour,
-                            afternoonStartState.minute,
-                            afternoonDuration.toIntOrNull() ?: 45,
-                            afternoonBreak.toIntOrNull() ?: 10,
-                            afternoonCount.toIntOrNull() ?: 4
-                        ) else emptyList()
-                        val eSlots = if (eveningEnabled) genSlots(
-                            eveningStartState.hour,
-                            eveningStartState.minute,
-                            eveningDuration.toIntOrNull() ?: 45,
-                            eveningBreak.toIntOrNull() ?: 10,
-                            eveningCount.toIntOrNull() ?: 2
-                        ) else emptyList()
-                        onApply(mSlots, aSlots, eSlots)
-                    }) { Text("应用") }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = h, onValueChange = { h = it.filter { c -> c.isDigit() }.take(2) }, label = { Text("开始小时") })
+                    OutlinedTextField(value = m, onValueChange = { m = it.filter { c -> c.isDigit() }.take(2) }, label = { Text("开始分钟") })
                 }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = d, onValueChange = { d = it.filter { c -> c.isDigit() }.take(2) }, label = { Text("节时长(分钟)") })
+                    OutlinedTextField(value = b, onValueChange = { b = it.filter { c -> c.isDigit() }.take(2) }, label = { Text("课间(分钟)") })
+                }
+                OutlinedTextField(value = c, onValueChange = { c = it.filter { ch -> ch.isDigit() }.take(1) }, label = { Text("每段节数") })
             }
-        }
-    }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val slots = genSlots(h.toIntOrNull() ?: 8, m.toIntOrNull() ?: 0, d.toIntOrNull() ?: 45, b.toIntOrNull() ?: 10, c.toIntOrNull() ?: 4)
+                val mSlots = if (morningChecked) slots else currentMorningSlots
+                val aSlots = if (afternoonChecked) slots else currentAfternoonSlots
+                val eSlots = if (eveningChecked) slots else currentEveningSlots
+                onApply(mSlots, aSlots, eSlots)
+                onDismiss()
+            }) { Text("应用") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+    )
 }
 
 private fun genSlots(h: Int, m: Int, d: Int, b: Int, c: Int): List<String> {
-    var hour = h
-    var minute = m
-    val res = mutableListOf<String>()
+    val slots = mutableListOf<String>()
+    var sh = h
+    var sm = m
     repeat(c) {
-        var endHour = hour
-        var endMinute = minute + d
-        endHour += endMinute / 60
-        endMinute %= 60
-        res += "%02d:%02d-%02d:%02d".format(hour, minute, endHour, endMinute)
-        endMinute += b
-        endHour += endMinute / 60
-        endMinute %= 60
-        hour = endHour
-        minute = endMinute
+        var eh = sh
+        var em = sm + d
+        if (em >= 60) {
+            eh += em / 60
+            em %= 60
+        }
+        slots.add("%02d:%02d-%02d:%02d".format(sh, sm, eh, em))
+        sm = em + b
+        sh = eh
+        if (sm >= 60) {
+            sh += sm / 60
+            sm %= 60
+        }
     }
-    return res
+    return slots
 }
