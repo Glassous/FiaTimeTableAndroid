@@ -133,6 +133,21 @@ class WeekViewViewModel(private val repository: TimeTableRepository) : ViewModel
     }
 
     /**
+     * 判断当前视图是否处于“本周”
+     */
+    fun isAtCurrentWeek(): Boolean {
+        val term = _timeTableData.value.terms.find { it.name == _selectedTerm.value } ?: return false
+        return runCatching {
+            val start = LocalDate.parse(term.startDate, dateFormatterYMD)
+            val today = LocalDate.now()
+            val days = java.time.temporal.ChronoUnit.DAYS.between(start, today).toInt()
+            val computed = if (days >= 0) (days / 7) + 1 else 1
+            val bounded = computed.coerceIn(1, term.weeks)
+            _currentWeek.value == bounded
+        }.getOrDefault(false)
+    }
+
+    /**
      * 切换到下一周
      */
     fun nextWeek() {

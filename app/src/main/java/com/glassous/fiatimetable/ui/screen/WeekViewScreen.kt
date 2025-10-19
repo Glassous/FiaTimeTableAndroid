@@ -139,14 +139,17 @@ fun WeekViewScreen() {
                 Text(text = "第${currentWeek}周")
             },
             actions = {
+                val atCurrentWeek = viewModel.isAtCurrentWeek()
+                if (!atCurrentWeek) {
+                    TextButton(onClick = { viewModel.backToCurrentWeek() }) {
+                        Text(text = "回到本周")
+                    }
+                }
                 IconButton(onClick = { viewModel.prevWeek() }) {
                     Icon(Icons.Default.ChevronLeft, contentDescription = "上一周")
                 }
                 IconButton(onClick = { viewModel.nextWeek() }) {
                     Icon(Icons.Default.ChevronRight, contentDescription = "下一周")
-                }
-                TextButton(onClick = { viewModel.backToCurrentWeek() }) {
-                    Text(text = "回到本周")
                 }
             }
         )

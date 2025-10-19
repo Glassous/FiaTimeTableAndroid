@@ -29,6 +29,14 @@ class SettingsViewModel(private val repository: TimeTableRepository) : ViewModel
     private val _eveningSlots = MutableStateFlow<List<String>>(emptyList())
     val eveningSlots: StateFlow<List<String>> = _eveningSlots.asStateFlow()
 
+    // 主题偏好：system / light / dark
+    private val _theme = MutableStateFlow("system")
+    val theme: StateFlow<String> = _theme.asStateFlow()
+
+    // 启动页面偏好：day / week
+    private val _startPage = MutableStateFlow("week")
+    val startPage: StateFlow<String> = _startPage.asStateFlow()
+
     private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
     init {
@@ -59,6 +67,11 @@ class SettingsViewModel(private val repository: TimeTableRepository) : ViewModel
             // classify existing time slots
             val slots = repository.getTimeSlots()
             classifySlots(slots)
+
+            // 加载主题偏好
+            _theme.value = repository.getTheme()
+            // 加载启动页面偏好
+            _startPage.value = repository.getStartPage()
         }
     }
 
@@ -158,6 +171,22 @@ class SettingsViewModel(private val repository: TimeTableRepository) : ViewModel
         _eveningSlots.value = evening
     }
 
+    // 主题设置：system / light / dark
+    fun setTheme(theme: String) {
+        viewModelScope.launch {
+            _theme.value = theme
+            repository.saveTheme(theme)
+        }
+    }
+
+    // 启动页面设置：day / week
+    fun setStartPage(page: String) {
+        viewModelScope.launch {
+            _startPage.value = page
+            repository.saveStartPage(page)
+        }
+    }
+
     // 备份导出：返回 JSON 字符串
     fun exportBackupJson(): String {
         return com.glassous.fiatimetable.data.repository.exportBackupJson(repository)
@@ -171,6 +200,7 @@ class SettingsViewModel(private val repository: TimeTableRepository) : ViewModel
             _terms.value = data.terms
             _selectedTerm.value = data.selectedTerm
             classifySlots(data.timeSlots)
+            _theme.value = data.theme
         }
     }
 }

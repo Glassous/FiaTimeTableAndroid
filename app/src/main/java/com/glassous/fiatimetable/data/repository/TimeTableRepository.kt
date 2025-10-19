@@ -26,6 +26,7 @@ class TimeTableRepository(context: Context) {
         private const val KEY_TIME_SLOTS = "xf_timeSlots"
         private const val KEY_SELECTED_TERM = "xf_term"
         private const val KEY_THEME = "xf_theme"
+        private const val KEY_START_PAGE = "xf_start_page"
     }
     
     // 获取学期列表
@@ -150,6 +151,23 @@ class TimeTableRepository(context: Context) {
     // 保存主题设置
     fun saveTheme(theme: String) {
         sharedPreferences.edit().putString(KEY_THEME, theme).apply()
+    }
+
+    // 启动页面设置：day / week
+    fun getStartPage(): String {
+        return sharedPreferences.getString(KEY_START_PAGE, "week") ?: "week"
+    }
+
+    fun saveStartPage(page: String) {
+        sharedPreferences.edit().putString(KEY_START_PAGE, page).apply()
+    }
+
+    // 监听主题变更（供 Compose 层注册/注销）
+    fun registerOnThemeChangedListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
+        sharedPreferences.registerOnSharedPreferenceChangeListener(listener)
+    }
+    fun unregisterOnThemeChangedListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
+        sharedPreferences.unregisterOnSharedPreferenceChangeListener(listener)
     }
     
     // 获取完整的课程表数据
