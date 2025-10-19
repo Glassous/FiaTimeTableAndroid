@@ -53,6 +53,11 @@ import com.glassous.fiatimetable.data.model.OnlineCourse
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+// 新增：Pager 相关导入
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
+import androidx.compose.foundation.pager.rememberPagerState
 
 private fun segmentOf(slot: String): String {
     val normalized = slot.replace("~", "-").replace("—", "-").replace("–", "-")
@@ -65,7 +70,7 @@ private fun segmentOf(slot: String): String {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun WeekViewScreen(
     pureMode: Boolean,
@@ -196,32 +201,59 @@ fun WeekViewScreen(
                 )
             }
 
-            // 课程表网格 - 直接显示，无需学期选择器
-            TimeTableGrid(
-            timeSlots = timeTableData.timeSlots,
-            courses = timeTableData.courses[selectedTerm] ?: emptyMap(), 
-            weekDates = weekDates,
-            currentWeek = currentWeek,
-            onlineCourses = timeTableData.onlineCourses[selectedTerm] ?: emptyList(),
-            onCellClick = handleCellClick,
-            onAddOnlineCourse = {
-                editingOnlineCourse = null
-                showOnlineCourseDialog = true
-            },
-            onEditOnlineCourse = { course ->
-                editingOnlineCourse = course
-                showOnlineCourseDialog = true
-            },
-            onDeleteOnlineCourse = { course ->
-                deletingOnlineCourse = course
-                showOnlineDeleteConfirm = true
-            },
-            showWeekend = showWeekend,
-            showBreaks = showBreaks,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(8.dp)
-        )
+            // 课程表网格：使用 HorizontalPager 实现左右滑动切换周
+            val termWeeks = timeTableData.terms.find { it.name == selectedTerm }?.weeks ?: currentWeek
+            val pagerState = rememberPagerState(initialPage = (currentWeek - 1).coerceAtLeast(0)) { termWeeks }
+
+            // 当外部周次变化（按钮/回到本周）时，同步 Pager
+            LaunchedEffect(currentWeek, termWeeks) {
+                val target = (currentWeek - 1).coerceIn(0, termWeeks - 1)
+                if (pagerState.currentPage != target) {
+                    pagerState.scrollToPage(target)
+                }
+            }
+            // Pager 滑动时更新 ViewModel 的周次（驱动顶部日期与内容）
+            LaunchedEffect(pagerState.currentPage) {
+                val targetWeek = pagerState.currentPage + 1
+                if (targetWeek != currentWeek) {
+                    viewModel.setWeek(targetWeek)
+                }
+            }
+
+            HorizontalPager(
+                state = pagerState,
+                beyondViewportPageCount = 1,
+                flingBehavior = PagerDefaults.flingBehavior(state = pagerState),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(8.dp)
+            ) { page ->
+                val weekIndex = page + 1
+                TimeTableGrid(
+                    timeSlots = timeTableData.timeSlots,
+                    courses = timeTableData.courses[selectedTerm] ?: emptyMap(),
+                    weekDates = weekDates,
+                    currentWeek = weekIndex,
+                    onlineCourses = timeTableData.onlineCourses[selectedTerm] ?: emptyList(),
+                    onCellClick = handleCellClick,
+                    onAddOnlineCourse = {
+                        editingOnlineCourse = null
+                        showOnlineCourseDialog = true
+                    },
+                    onEditOnlineCourse = { course ->
+                        editingOnlineCourse = course
+                        showOnlineCourseDialog = true
+                    },
+                    onDeleteOnlineCourse = { course ->
+                        deletingOnlineCourse = course
+                        showOnlineDeleteConfirm = true
+                    },
+                    showWeekend = showWeekend,
+                    showBreaks = showBreaks,
+                    modifier = Modifier
+                        .fillMaxSize()
+                )
+            }
         }
         // 纯净模式退出悬浮按钮
         if (pureMode) {
