@@ -176,12 +176,7 @@ class TimeTableRepository(context: Context) {
     // 清空所有数据
     fun clearAllData() {
         sharedPreferences.edit()
-            .remove(KEY_TERMS)
-            .remove(KEY_COURSES)
-            .remove(KEY_ONLINE_COURSES)
-            .remove(KEY_TIME_SLOTS)
-            .remove(KEY_SELECTED_TERM)
-            .remove(KEY_THEME)
+            .clear()
             .apply()
     }
 }

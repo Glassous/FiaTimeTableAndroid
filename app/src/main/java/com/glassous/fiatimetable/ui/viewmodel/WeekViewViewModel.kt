@@ -48,15 +48,37 @@ class WeekViewViewModel(private val repository: TimeTableRepository) : ViewModel
         viewModelScope.launch {
             try {
                 val data = repository.getTimeTableData()
-                _timeTableData.value = data
-                
-                // 设置默认选中的学期
-                val currentTerm = repository.getSelectedTerm()
-                if (currentTerm.isNotEmpty() && data.terms.any { it.name == currentTerm }) {
-                    _selectedTerm.value = currentTerm
-                } else if (data.terms.isNotEmpty()) {
-                    _selectedTerm.value = data.terms.first().name
-                    repository.saveSelectedTerm(data.terms.first().name)
+                // 如果学期列表为空（例如系统清除数据后），进行安全初始化
+                if (data.terms.isEmpty()) {
+                    val now = java.time.LocalDate.now()
+                    val month = now.monthValue
+                    val (name, startDate) = if (month >= 9) {
+                        val startYear = now.year
+                        val endYear = now.year + 1
+                        "${startYear}-${endYear} 秋季" to now.withMonth(9).withDayOfMonth(1).format(dateFormatterYMD)
+                    } else {
+                        val startYear = now.year - 1
+                        val endYear = now.year
+                        val feb = java.time.LocalDate.of(endYear, 2, 1)
+                        val start = feb.withDayOfMonth(feb.lengthOfMonth())
+                        "${startYear}-${endYear} 春季" to start.format(dateFormatterYMD)
+                    }
+                    val initial = com.glassous.fiatimetable.data.model.Term(name = name, weeks = 16, startDate = startDate)
+                    // 写入存储并更新内存状态
+                    repository.saveTerms(listOf(initial))
+                    repository.saveSelectedTerm(initial.name)
+                    _timeTableData.value = data.copy(terms = listOf(initial), selectedTerm = initial.name)
+                    _selectedTerm.value = initial.name
+                } else {
+                    _timeTableData.value = data
+                    // 设置默认选中的学期
+                    val currentTerm = repository.getSelectedTerm()
+                    if (currentTerm.isNotEmpty() && data.terms.any { it.name == currentTerm }) {
+                        _selectedTerm.value = currentTerm
+                    } else if (data.terms.isNotEmpty()) {
+                        _selectedTerm.value = data.terms.first().name
+                        repository.saveSelectedTerm(data.terms.first().name)
+                    }
                 }
 
                 // 选定学期后计算当前周与日期
