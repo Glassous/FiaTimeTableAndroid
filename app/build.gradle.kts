@@ -53,6 +53,9 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.gson)
+    // 阿里云 OSS Android SDK
+    implementation("com.aliyun.dpa:oss-android-sdk:2.9.11")
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

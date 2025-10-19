@@ -37,11 +37,29 @@ class SettingsViewModel(private val repository: TimeTableRepository) : ViewModel
     private val _startPage = MutableStateFlow("week")
     val startPage: StateFlow<String> = _startPage.asStateFlow()
 
+    // 云端同步配置状态
+    private val _ossEndpoint = MutableStateFlow("")
+    val ossEndpoint: StateFlow<String> = _ossEndpoint.asStateFlow()
+    private val _ossBucket = MutableStateFlow("")
+    val ossBucket: StateFlow<String> = _ossBucket.asStateFlow()
+    private val _ossObjectKey = MutableStateFlow("timetable-data.json")
+    val ossObjectKey: StateFlow<String> = _ossObjectKey.asStateFlow()
+    private val _ossAkId = MutableStateFlow("")
+    val ossAkId: StateFlow<String> = _ossAkId.asStateFlow()
+    private val _ossAkSecret = MutableStateFlow("")
+    val ossAkSecret: StateFlow<String> = _ossAkSecret.asStateFlow()
+    private val _ossRegion = MutableStateFlow("")
+    val ossRegion: StateFlow<String> = _ossRegion.asStateFlow()
+
+    private val _syncMessage = MutableStateFlow<String?>(null)
+    val syncMessage: StateFlow<String?> = _syncMessage.asStateFlow()
+
     private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
     init {
         viewModelScope.launch {
             loadData()
+            loadOssConfig()
         }
     }
 
@@ -201,6 +219,81 @@ class SettingsViewModel(private val repository: TimeTableRepository) : ViewModel
             _selectedTerm.value = data.selectedTerm
             classifySlots(data.timeSlots)
             _theme.value = data.theme
+        }
+    }
+
+    // 云端同步：加载配置
+    fun loadOssConfig() {
+        val cfg = repository.getOssSyncConfig()
+        if (cfg != null) {
+            _ossEndpoint.value = cfg.endpoint
+            _ossBucket.value = cfg.bucketName
+            _ossObjectKey.value = cfg.objectKey
+            _ossAkId.value = cfg.accessKeyId
+            _ossAkSecret.value = cfg.accessKeySecret
+            _ossRegion.value = cfg.regionId ?: ""
+        } else {
+            _ossEndpoint.value = ""
+            _ossBucket.value = ""
+            _ossObjectKey.value = "timetable-data.json"
+            _ossAkId.value = ""
+            _ossAkSecret.value = ""
+            _ossRegion.value = ""
+        }
+    }
+
+    // 云端同步：保存配置
+    fun saveOssConfig(endpoint: String, bucket: String, objectKey: String, akId: String, akSecret: String, regionId: String) {
+        viewModelScope.launch {
+            val cfg = com.glassous.fiatimetable.data.repository.OssSyncConfig(
+                endpoint = endpoint.trim().removeSuffix("/"),
+                bucketName = bucket.trim(),
+                objectKey = objectKey.trim().ifBlank { "timetable-data.json" },
+                accessKeyId = akId.trim(),
+                accessKeySecret = akSecret.trim(),
+                regionId = regionId.trim().ifBlank { null }
+            )
+            repository.saveOssSyncConfig(cfg)
+            _ossEndpoint.value = cfg.endpoint
+            _ossBucket.value = cfg.bucketName
+            _ossObjectKey.value = cfg.objectKey
+            _ossAkId.value = cfg.accessKeyId
+            _ossAkSecret.value = cfg.accessKeySecret
+            _ossRegion.value = cfg.regionId ?: ""
+        }
+    }
+
+    // 云端同步：手动上传
+    fun uploadToCloud() {
+        viewModelScope.launch {
+            try {
+                val json = exportBackupJson()
+                repository.uploadBackupToOss(json)
+                _syncMessage.value = "上传成功"
+            } catch (e: com.alibaba.sdk.android.oss.ClientException) {
+                _syncMessage.value = "上传失败：网络或本地错误：${e.message ?: "未知错误"}"
+            } catch (e: com.alibaba.sdk.android.oss.ServiceException) {
+                _syncMessage.value = "上传失败：${e.errorCode ?: "ServiceException"} (requestId=${e.requestId ?: "-"})"
+            } catch (e: Exception) {
+                _syncMessage.value = "上传失败：${e.message ?: "未知错误"}"
+            }
+        }
+    }
+
+    // 云端同步：手动下载
+    fun downloadFromCloud() {
+        viewModelScope.launch {
+            try {
+                val text = repository.downloadBackupFromOss()
+                importBackupJson(text)
+                _syncMessage.value = "下载并导入成功"
+            } catch (e: com.alibaba.sdk.android.oss.ClientException) {
+                _syncMessage.value = "下载失败：网络或本地错误：${e.message ?: "未知错误"}"
+            } catch (e: com.alibaba.sdk.android.oss.ServiceException) {
+                _syncMessage.value = "下载失败：${e.errorCode ?: "ServiceException"} (requestId=${e.requestId ?: "-"})"
+            } catch (e: Exception) {
+                _syncMessage.value = "下载失败：${e.message ?: "未知错误"}"
+            }
         }
     }
 }

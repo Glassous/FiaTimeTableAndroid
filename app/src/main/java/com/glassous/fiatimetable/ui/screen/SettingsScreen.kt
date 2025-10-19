@@ -38,6 +38,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.DropdownMenuItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,6 +58,8 @@ fun SettingsScreen() {
     val themePref by viewModel.theme.collectAsState()
     // 新增：启动页面偏好
     val startPagePref by viewModel.startPage.collectAsState()
+    // 新增：云端同步消息
+    val syncMessage by viewModel.syncMessage.collectAsState()
 
     var newTermName by remember { mutableStateOf(selectedTerm) }
     var newTermWeeks by remember { mutableStateOf("16") }
@@ -61,6 +67,9 @@ fun SettingsScreen() {
     var showDatePicker by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState()
     var showQuickSetup by remember { mutableStateOf(false) }
+
+    // 云端同步配置弹窗
+    var showOssConfig by remember { mutableStateOf(false) }
 
     LaunchedEffect(terms, selectedTerm) {
         val current = terms.find { it.name == selectedTerm } ?: terms.firstOrNull()
@@ -92,6 +101,11 @@ fun SettingsScreen() {
         ) {
             DatePicker(state = datePickerState)
         }
+    }
+
+    // 云端同步配置弹窗
+    if (showOssConfig) {
+        OssConfigDialog(viewModel = viewModel, onDismiss = { showOssConfig = false })
     }
 
     Scaffold(
@@ -301,6 +315,32 @@ fun SettingsScreen() {
                         Text(text = "数据备份与还原", style = MaterialTheme.typography.titleMedium)
                         Spacer(modifier = Modifier.height(8.dp))
                         BackupSection(viewModel)
+                    }
+                }
+            }
+
+            // 云端同步 (阿里云 OSS)
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(text = "云端同步 (阿里云 OSS)", style = MaterialTheme.typography.titleMedium)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { showOssConfig = true }, modifier = Modifier.weight(1f)) {
+                                Icon(Icons.Default.Settings, contentDescription = null)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("同步配置")
+                            }
+                            Button(onClick = { viewModel.uploadToCloud() }, modifier = Modifier.weight(1f)) {
+                                Text("保存至云端")
+                            }
+                            OutlinedButton(onClick = { viewModel.downloadFromCloud() }, modifier = Modifier.weight(1f)) {
+                                Text("从云端获取")
+                            }
+                        }
+                        if (syncMessage != null) {
+                            Text(syncMessage!!, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                        }
                     }
                 }
             }
@@ -697,6 +737,148 @@ private fun BackupSection(viewModel: SettingsViewModel) {
         }
         if (backupMessage != null) {
             Text(backupMessage!!, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
+// 云端同步配置弹窗
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun OssConfigDialog(viewModel: SettingsViewModel, onDismiss: () -> Unit) {
+    val endpointState by viewModel.ossEndpoint.collectAsState()
+    val bucketState by viewModel.ossBucket.collectAsState()
+    val objectKeyState by viewModel.ossObjectKey.collectAsState()
+    val akIdState by viewModel.ossAkId.collectAsState()
+    val akSecretState by viewModel.ossAkSecret.collectAsState()
+    val regionState by viewModel.ossRegion.collectAsState()
+
+    var endpoint by remember { mutableStateOf(endpointState) }
+    var bucket by remember { mutableStateOf(bucketState) }
+    var objectKey by remember { mutableStateOf(objectKeyState) }
+    var akId by remember { mutableStateOf(akIdState) }
+    var akSecret by remember { mutableStateOf(akSecretState) }
+    var selectedRegion by remember { mutableStateOf(regionState) }
+
+    val mainlandRegions = listOf(
+        "cn-hangzhou",
+        "cn-shanghai",
+        "cn-qingdao",
+        "cn-beijing",
+        "cn-shenzhen",
+        "cn-zhangjiakou",
+        "cn-huhehaote",
+        "cn-chengdu",
+        "cn-wulanchabu"
+    )
+    fun endpointFor(regionId: String): String = "https://oss-${regionId}.aliyuncs.com"
+
+    Dialog(
+        onDismissRequest = { onDismiss() },
+        properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = true)
+    ) {
+        Surface(shape = RoundedCornerShape(12.dp), tonalElevation = 2.dp) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(text = "同步配置", style = MaterialTheme.typography.titleMedium)
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 地域选择 + 自动填充 Endpoint
+                var expanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = !expanded },
+                ) {
+                    TextField(
+                        value = selectedRegion,
+                        onValueChange = { selectedRegion = it },
+                        label = { Text("地域 (中国大陆)") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        mainlandRegions.forEach { region ->
+                            DropdownMenuItem(
+                                text = { Text(region) },
+                                onClick = {
+                                    selectedRegion = region
+                                    endpoint = endpointFor(region)
+                                    expanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                TextField(
+                    value = endpoint,
+                    onValueChange = { endpoint = it },
+                    label = { Text("Endpoint") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                TextField(
+                    value = bucket,
+                    onValueChange = { bucket = it },
+                    label = { Text("Bucket 名称") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                TextField(
+                    value = objectKey,
+                    onValueChange = { objectKey = it },
+                    label = { Text("对象键名 (默认 timetable-data.json)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                TextField(
+                    value = akId,
+                    onValueChange = { akId = it },
+                    label = { Text("AccessKey ID") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                TextField(
+                    value = akSecret,
+                    onValueChange = { akSecret = it },
+                    label = { Text("AccessKey Secret") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(onClick = {
+                        viewModel.saveOssConfig(
+                            endpoint = endpoint,
+                            bucket = bucket,
+                            objectKey = objectKey,
+                            akId = akId,
+                            akSecret = akSecret,
+                            regionId = selectedRegion
+                        )
+                        onDismiss()
+                    }) {
+                        Text("保存配置")
+                    }
+                    OutlinedButton(onClick = { onDismiss() }) {
+                        Text("取消")
+                    }
+                }
+            }
         }
     }
 }

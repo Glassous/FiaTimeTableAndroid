@@ -17,6 +17,7 @@ class TimeTableRepository(context: Context) {
     private val sharedPreferences: SharedPreferences = 
         context.getSharedPreferences("timetable_data", Context.MODE_PRIVATE)
     private val gson = Gson()
+    private val appContext: Context = context.applicationContext
     
     companion object {
         // 存储键，严格遵守 DATA_STRUCTURE.md 中的定义
@@ -27,6 +28,13 @@ class TimeTableRepository(context: Context) {
         private const val KEY_SELECTED_TERM = "xf_term"
         private const val KEY_THEME = "xf_theme"
         private const val KEY_START_PAGE = "xf_start_page"
+        // 云端同步配置
+        private const val KEY_OSS_ENDPOINT = "xf_oss_endpoint"
+        private const val KEY_OSS_BUCKET = "xf_oss_bucket"
+        private const val KEY_OSS_OBJECT_KEY = "xf_oss_object_key"
+        private const val KEY_OSS_AK_ID = "xf_oss_ak_id"
+        private const val KEY_OSS_AK_SECRET = "xf_oss_ak_secret"
+        private const val KEY_OSS_REGION = "xf_oss_region"
     }
     
     // 获取学期列表
@@ -197,6 +205,56 @@ class TimeTableRepository(context: Context) {
         sharedPreferences.edit()
             .clear()
             .apply()
+    }
+
+    // 云端同步配置读取
+    fun getOssSyncConfig(): OssSyncConfig? {
+        val endpoint = sharedPreferences.getString(KEY_OSS_ENDPOINT, null)?.trim()?.removeSuffix("/")
+        val bucket = sharedPreferences.getString(KEY_OSS_BUCKET, null)?.trim()
+        val objectKey = (sharedPreferences.getString(KEY_OSS_OBJECT_KEY, "timetable-data.json") ?: "timetable-data.json").trim()
+        val akId = sharedPreferences.getString(KEY_OSS_AK_ID, null)?.trim()
+        val akSecret = sharedPreferences.getString(KEY_OSS_AK_SECRET, null)?.trim()
+        val region = sharedPreferences.getString(KEY_OSS_REGION, null)?.trim()
+        return if (!endpoint.isNullOrBlank() && !bucket.isNullOrBlank() && !akId.isNullOrBlank() && !akSecret.isNullOrBlank()) {
+            OssSyncConfig(endpoint!!, bucket!!, objectKey, akId!!, akSecret!!, region)
+        } else {
+            null
+        }
+    }
+
+    // 云端同步配置保存
+    fun saveOssSyncConfig(cfg: OssSyncConfig) {
+        sharedPreferences.edit()
+            .putString(KEY_OSS_ENDPOINT, cfg.endpoint.trim().removeSuffix("/"))
+            .putString(KEY_OSS_BUCKET, cfg.bucketName.trim())
+            .putString(KEY_OSS_OBJECT_KEY, cfg.objectKey.trim())
+            .putString(KEY_OSS_AK_ID, cfg.accessKeyId.trim())
+            .putString(KEY_OSS_AK_SECRET, cfg.accessKeySecret.trim())
+            .putString(KEY_OSS_REGION, cfg.regionId?.trim())
+            .apply()
+    }
+
+    // 将备份JSON上传到阿里云OSS（覆盖同名对象）
+    fun uploadBackupToOss(json: String) {
+        val cfg = getOssSyncConfig() ?: throw IllegalStateException("未配置云端同步")
+        // 写入临时文件后上传
+        val tmp = java.io.File(appContext.cacheDir, "timetable-upload.json")
+        tmp.writeText(json)
+        val credentialProvider = com.alibaba.sdk.android.oss.common.auth.OSSPlainTextAKSKCredentialProvider(cfg.accessKeyId, cfg.accessKeySecret)
+        val oss = com.alibaba.sdk.android.oss.OSSClient(appContext, cfg.endpoint, credentialProvider)
+        val put = com.alibaba.sdk.android.oss.model.PutObjectRequest(cfg.bucketName, cfg.objectKey, tmp.absolutePath)
+        oss.putObject(put)
+    }
+
+    // 从阿里云OSS下载备份JSON并返回字符串
+    fun downloadBackupFromOss(): String {
+        val cfg = getOssSyncConfig() ?: throw IllegalStateException("未配置云端同步")
+        val credentialProvider = com.alibaba.sdk.android.oss.common.auth.OSSPlainTextAKSKCredentialProvider(cfg.accessKeyId, cfg.accessKeySecret)
+        val oss = com.alibaba.sdk.android.oss.OSSClient(appContext, cfg.endpoint, credentialProvider)
+        val getReq = com.alibaba.sdk.android.oss.model.GetObjectRequest(cfg.bucketName, cfg.objectKey)
+        val result = oss.getObject(getReq)
+        val text = result.objectContent.bufferedReader().use { it.readText() }
+        return text
     }
 }
 
@@ -383,3 +441,13 @@ fun importBackupJson(json: String): TimeTableData {
         theme = theme
     )
 }
+
+// 云端同步配置数据
+data class OssSyncConfig(
+    val endpoint: String,
+    val bucketName: String,
+    val objectKey: String = "timetable-data.json",
+    val accessKeyId: String,
+    val accessKeySecret: String,
+    val regionId: String? = null
+)
