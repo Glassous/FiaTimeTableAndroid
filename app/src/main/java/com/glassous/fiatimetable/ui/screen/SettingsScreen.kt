@@ -22,6 +22,13 @@ import com.glassous.fiatimetable.ui.viewmodel.SettingsViewModelFactory
 import java.time.Instant
 import java.time.ZoneId
 
+// 新增导入
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.alpha
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen() {
@@ -59,161 +66,142 @@ fun SettingsScreen() {
                 TextButton(onClick = {
                     val millis = datePickerState.selectedDateMillis
                     if (millis != null) {
-                        val date = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
-                        newTermStartDate = date.toString()
+                        val localDate = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+                        newTermStartDate = localDate.toString()
+                        showDatePicker = false
                     }
-                    showDatePicker = false
-                }) { Text("确定") }
+                }) {
+                    Text("确定")
+                }
             },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("取消") }
-            }
+            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("取消") } }
         ) {
-            DatePicker(
-                state = datePickerState,
-                showModeToggle = false,
-                title = { Text("选择学期开始日期") },
-                headline = null
-            )
+            DatePicker(state = datePickerState)
         }
     }
 
-    // 主体内容
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(bottom = 128.dp)
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("设置") }
+            )
+        }
     ) {
-        // 学期设置
-        item {
-            Card {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(text = "学期设置", style = MaterialTheme.typography.titleMedium)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    if (terms.isEmpty()) {
-                        Text(
-                            text = "已根据当前日期创建初始学期：$selectedTerm",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    // 当前学期选择器
-                    if (terms.isNotEmpty()) {
-                        var expanded by remember { mutableStateOf(false) }
-                        ExposedDropdownMenuBox(
-                            expanded = expanded,
-                            onExpandedChange = { expanded = !expanded },
-                        ) {
-                            OutlinedTextField(
-                                readOnly = true,
-                                value = selectedTerm,
-                                onValueChange = {},
-                                label = { Text("当前学期") },
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                                modifier = Modifier.menuAnchor().fillMaxWidth()
-                            )
-                            ExposedDropdownMenu(
-                                expanded = expanded,
-                                onDismissRequest = { expanded = false }
-                            ) {
-                                terms.forEach { term ->
-                                    DropdownMenuItem(
-                                        text = { Text(term.name) },
-                                        onClick = {
+        val padding = it
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp),
+            contentPadding = PaddingValues(bottom = 120.dp)
+        ) {
+            item {
+                Card {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(text = "学期设置", style = MaterialTheme.typography.titleMedium)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = "选择学期：", style = MaterialTheme.typography.bodyMedium)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            var expanded by remember { mutableStateOf(false) }
+                            ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+                                OutlinedTextField(
+                                    value = selectedTerm,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text("当前学期") },
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                                    modifier = Modifier.menuAnchor().weight(1f)
+                                )
+                                ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                                    terms.forEach { term ->
+                                        DropdownMenuItem(text = { Text(term.name) }, onClick = {
                                             viewModel.setSelectedTerm(term.name)
                                             expanded = false
-                                            newTermName = term.name
-                                            newTermWeeks = term.weeks.toString()
-                                            newTermStartDate = term.startDate
-                                        }
-                                    )
+                                        })
+                                    }
                                 }
                             }
                         }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    OutlinedTextField(
-                        value = newTermName,
-                        onValueChange = { newTermName = it },
-                        label = { Text("学期名称，如 2025-2026 秋季") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = newTermWeeks,
-                        onValueChange = { newTermWeeks = it.filter { ch -> ch.isDigit() }.take(2) },
-                        label = { Text("学期总周数") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = newTermStartDate,
-                        onValueChange = { /* 通过日期选择器设置，避免手动输入 */ },
-                        label = { Text("学期开始日期") },
-                        modifier = Modifier.fillMaxWidth(),
-                        readOnly = true,
-                        placeholder = { Text("点击下方\u201C选择日期\u201D") }
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { showDatePicker = true }) {
-                            Text("选择日期")
-                        }
-                        Button(onClick = {
-                            val weeks = newTermWeeks.toIntOrNull() ?: 16
-                            val date = if (newTermStartDate.isNotBlank()) newTermStartDate else ""
-                            if (newTermName.isNotBlank() && date.isNotBlank()) {
-                                viewModel.saveTerm(newTermName, date, weeks)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = newTermName,
+                            onValueChange = { newTermName = it },
+                            label = { Text("学期名称") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = newTermWeeks,
+                            onValueChange = { newTermWeeks = it.filter { ch -> ch.isDigit() }.take(2) },
+                            label = { Text("学期总周数") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = newTermStartDate,
+                            onValueChange = { /* 通过日期选择器设置，避免手动输入 */ },
+                            label = { Text("学期开始日期") },
+                            modifier = Modifier.fillMaxWidth(),
+                            readOnly = true,
+                            placeholder = { Text("点击下方“选择日期”") }
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = { showDatePicker = true }) {
+                                Text("选择日期")
                             }
-                        }) {
-                            Text("保存学期")
+                            Button(onClick = {
+                                val weeks = newTermWeeks.toIntOrNull() ?: 16
+                                val date = if (newTermStartDate.isNotBlank()) newTermStartDate else ""
+                                if (newTermName.isNotBlank() && date.isNotBlank()) {
+                                    viewModel.saveTerm(newTermName, date, weeks)
+                                }
+                            }) {
+                                Text("保存学期")
+                            }
                         }
                     }
                 }
             }
-        }
 
-        // 上课时间设置（上午/下午/晚上）
-        item {
-            Card {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(text = "上课时间设置", style = MaterialTheme.typography.titleMedium)
-                    Spacer(modifier = Modifier.height(8.dp))
+            // 上课时间设置（上午/下午/晚上）
+            item {
+                Card {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(text = "上课时间设置", style = MaterialTheme.typography.titleMedium)
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                    TimeSlotsSection(
-                        title = "上午",
-                        slots = morningSlots,
-                        onAdd = { viewModel.addMorningSlot(it) },
-                        onRemove = { viewModel.removeMorningSlot(it) }
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    TimeSlotsSection(
-                        title = "下午",
-                        slots = afternoonSlots,
-                        onAdd = { viewModel.addAfternoonSlot(it) },
-                        onRemove = { viewModel.removeAfternoonSlot(it) }
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    TimeSlotsSection(
-                        title = "晚上",
-                        slots = eveningSlots,
-                        onAdd = { viewModel.addEveningSlot(it) },
-                        onRemove = { viewModel.removeEveningSlot(it) }
-                    )
+                        TimeSlotsSection(
+                            title = "上午",
+                            slots = morningSlots,
+                            onAdd = { viewModel.addMorningSlot(it) },
+                            onRemove = { viewModel.removeMorningSlot(it) }
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        TimeSlotsSection(
+                            title = "下午",
+                            slots = afternoonSlots,
+                            onAdd = { viewModel.addAfternoonSlot(it) },
+                            onRemove = { viewModel.removeAfternoonSlot(it) }
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        TimeSlotsSection(
+                            title = "晚上",
+                            slots = eveningSlots,
+                            onAdd = { viewModel.addEveningSlot(it) },
+                            onRemove = { viewModel.removeEveningSlot(it) }
+                        )
 
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { showQuickSetup = true }) {
-                            Icon(Icons.Default.Settings, contentDescription = null)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("快捷设置")
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { showQuickSetup = true }) {
+                                Icon(Icons.Default.Settings, contentDescription = null)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("快捷设置")
+                            }
                         }
-                        Button(onClick = { viewModel.saveTimeSlots() }) { Text("保存时间段") }
                     }
                 }
             }
@@ -228,6 +216,7 @@ fun SettingsScreen() {
             currentEveningSlots = eveningSlots,
             onApply = { mSlots, aSlots, eSlots ->
                 viewModel.setGroupedSlots(mSlots, aSlots, eSlots)
+                viewModel.saveTimeSlots() // 立即保存
                 showQuickSetup = false
             }
         )
@@ -286,18 +275,12 @@ private fun TimeSlotsSection(
 }
 
 private fun isValidSlotFormat(value: String): Boolean {
-    val regex = Regex("^\\d{2}:\\d{2}-\\d{2}:\\d{2}$")
-    if (!regex.matches(value)) return false
     return try {
-        val parts = value.split("-")
-        val (sh, sm) = parts[0].split(":").map { it.toInt() }
-        val (eh, em) = parts[1].split(":").map { it.toInt() }
-        val start = sh * 60 + sm
-        val end = eh * 60 + em
-        start < end
-    } catch (_: Exception) {
-        false
-    }
+        val parts = value.split(":", "-")
+        parts.size == 6 &&
+                parts[0].toInt() in 0..23 && parts[1].toInt() in 0..59 &&
+                parts[2].toInt() in 0..23 && parts[3].toInt() in 0..59
+    } catch (_: Exception) { false }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -310,27 +293,35 @@ private fun AddSlotDialog(
     val startState = rememberTimePickerState(is24Hour = true)
     val endState = rememberTimePickerState(is24Hour = true)
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(onClick = {
-                onConfirm(startState.hour, startState.minute, endState.hour, endState.minute)
-            }) { Text("添加") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
-        text = {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .padding(16.dp),
+            shape = RoundedCornerShape(16.dp)
+        ) {
             Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.verticalScroll(rememberScrollState())
+                modifier = Modifier
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState())
             ) {
                 Text(text = "添加 $title 时间段", style = MaterialTheme.typography.titleMedium)
                 Text(text = "开始时间")
-                TimePicker(state = startState)
+                TimePicker(state = startState, modifier = Modifier.scale(0.85f))
                 Text(text = "结束时间")
-                TimePicker(state = endState)
+                TimePicker(state = endState, modifier = Modifier.scale(0.85f))
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDismiss) { Text("取消") }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    TextButton(onClick = {
+                        onConfirm(startState.hour, startState.minute, endState.hour, endState.minute)
+                    }) { Text("添加") }
+                }
             }
         }
-    )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -410,103 +401,133 @@ private fun QuickSetupDialog(
     var eveningBreak by remember { mutableStateOf(eBreakInit.toString()) }
     var eveningCount by remember { mutableStateOf(eCountInit.toString()) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(onClick = {
-                val mSlots = genSlots(
-                    morningStartState.hour,
-                    morningStartState.minute,
-                    morningDuration.toIntOrNull() ?: 45,
-                    morningBreak.toIntOrNull() ?: 10,
-                    morningCount.toIntOrNull() ?: 4
-                )
-                val aSlots = genSlots(
-                    afternoonStartState.hour,
-                    afternoonStartState.minute,
-                    afternoonDuration.toIntOrNull() ?: 45,
-                    afternoonBreak.toIntOrNull() ?: 10,
-                    afternoonCount.toIntOrNull() ?: 4
-                )
-                val eSlots = genSlots(
-                    eveningStartState.hour,
-                    eveningStartState.minute,
-                    eveningDuration.toIntOrNull() ?: 45,
-                    eveningBreak.toIntOrNull() ?: 10,
-                    eveningCount.toIntOrNull() ?: 2
-                )
-                onApply(mSlots, aSlots, eSlots)
-            }) {
-                Text("应用")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
-        },
-        title = { Text("上课时间快捷设置") },
-        text = {
-            Column(modifier = Modifier.verticalScroll(scrollState)) {
-                // 早上
-                Text("早上")
-                TimePicker(state = morningStartState)
-                OutlinedTextField(
-                    value = morningDuration,
-                    onValueChange = { morningDuration = it },
-                    label = { Text("每节时长(分钟)") }
-                )
-                OutlinedTextField(
-                    value = morningBreak,
-                    onValueChange = { morningBreak = it },
-                    label = { Text("间隔(分钟)") }
-                )
-                OutlinedTextField(
-                    value = morningCount,
-                    onValueChange = { morningCount = it },
-                    label = { Text("节数") }
-                )
-                Divider()
+    var morningEnabled by remember { mutableStateOf(true) }
+    var afternoonEnabled by remember { mutableStateOf(true) }
+    var eveningEnabled by remember { mutableStateOf(true) }
 
-                // 下午
-                Text("下午")
-                TimePicker(state = afternoonStartState)
-                OutlinedTextField(
-                    value = afternoonDuration,
-                    onValueChange = { afternoonDuration = it },
-                    label = { Text("每节时长(分钟)") }
-                )
-                OutlinedTextField(
-                    value = afternoonBreak,
-                    onValueChange = { afternoonBreak = it },
-                    label = { Text("间隔(分钟)") }
-                )
-                OutlinedTextField(
-                    value = afternoonCount,
-                    onValueChange = { afternoonCount = it },
-                    label = { Text("节数") }
-                )
-                Divider()
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.95f)
+                .fillMaxHeight(0.9f)
+                .padding(16.dp),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                Text("上课时间快捷设置", style = MaterialTheme.typography.titleMedium)
+                Spacer(modifier = Modifier.height(8.dp))
 
-                // 晚上
-                Text("晚上")
-                TimePicker(state = eveningStartState)
-                OutlinedTextField(
-                    value = eveningDuration,
-                    onValueChange = { eveningDuration = it },
-                    label = { Text("每节时长(分钟)") }
-                )
-                OutlinedTextField(
-                    value = eveningBreak,
-                    onValueChange = { eveningBreak = it },
-                    label = { Text("间隔(分钟)") }
-                )
-                OutlinedTextField(
-                    value = eveningCount,
-                    onValueChange = { eveningCount = it },
-                    label = { Text("节数") }
-                )
+                Column(modifier = Modifier.weight(1f).verticalScroll(scrollState)) {
+                    // 早上
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("早上", modifier = Modifier.weight(1f))
+                        Switch(checked = morningEnabled, onCheckedChange = { morningEnabled = it })
+                    }
+                    TimePicker(state = morningStartState, modifier = Modifier.scale(0.85f).alpha(if (morningEnabled) 1f else 0.5f))
+                    OutlinedTextField(
+                        value = morningDuration,
+                        onValueChange = { morningDuration = it },
+                        label = { Text("每节时长(分钟)") },
+                        enabled = morningEnabled
+                    )
+                    OutlinedTextField(
+                        value = morningBreak,
+                        onValueChange = { morningBreak = it },
+                        label = { Text("间隔(分钟)") },
+                        enabled = morningEnabled
+                    )
+                    OutlinedTextField(
+                        value = morningCount,
+                        onValueChange = { morningCount = it },
+                        label = { Text("节数") },
+                        enabled = morningEnabled
+                    )
+                    Divider()
+
+                    // 下午
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("下午", modifier = Modifier.weight(1f))
+                        Switch(checked = afternoonEnabled, onCheckedChange = { afternoonEnabled = it })
+                    }
+                    TimePicker(state = afternoonStartState, modifier = Modifier.scale(0.85f).alpha(if (afternoonEnabled) 1f else 0.5f))
+                    OutlinedTextField(
+                        value = afternoonDuration,
+                        onValueChange = { afternoonDuration = it },
+                        label = { Text("每节时长(分钟)") },
+                        enabled = afternoonEnabled
+                    )
+                    OutlinedTextField(
+                        value = afternoonBreak,
+                        onValueChange = { afternoonBreak = it },
+                        label = { Text("间隔(分钟)") },
+                        enabled = afternoonEnabled
+                    )
+                    OutlinedTextField(
+                        value = afternoonCount,
+                        onValueChange = { afternoonCount = it },
+                        label = { Text("节数") },
+                        enabled = afternoonEnabled
+                    )
+                    Divider()
+
+                    // 晚上
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("晚上", modifier = Modifier.weight(1f))
+                        Switch(checked = eveningEnabled, onCheckedChange = { eveningEnabled = it })
+                    }
+                    TimePicker(state = eveningStartState, modifier = Modifier.scale(0.85f).alpha(if (eveningEnabled) 1f else 0.5f))
+                    OutlinedTextField(
+                        value = eveningDuration,
+                        onValueChange = { eveningDuration = it },
+                        label = { Text("每节时长(分钟)") },
+                        enabled = eveningEnabled
+                    )
+                    OutlinedTextField(
+                        value = eveningBreak,
+                        onValueChange = { eveningBreak = it },
+                        label = { Text("间隔(分钟)") },
+                        enabled = eveningEnabled
+                    )
+                    OutlinedTextField(
+                        value = eveningCount,
+                        onValueChange = { eveningCount = it },
+                        label = { Text("节数") },
+                        enabled = eveningEnabled
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDismiss) { Text("取消") }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    TextButton(onClick = {
+                        val mSlots = if (morningEnabled) genSlots(
+                            morningStartState.hour,
+                            morningStartState.minute,
+                            morningDuration.toIntOrNull() ?: 45,
+                            morningBreak.toIntOrNull() ?: 10,
+                            morningCount.toIntOrNull() ?: 4
+                        ) else emptyList()
+                        val aSlots = if (afternoonEnabled) genSlots(
+                            afternoonStartState.hour,
+                            afternoonStartState.minute,
+                            afternoonDuration.toIntOrNull() ?: 45,
+                            afternoonBreak.toIntOrNull() ?: 10,
+                            afternoonCount.toIntOrNull() ?: 4
+                        ) else emptyList()
+                        val eSlots = if (eveningEnabled) genSlots(
+                            eveningStartState.hour,
+                            eveningStartState.minute,
+                            eveningDuration.toIntOrNull() ?: 45,
+                            eveningBreak.toIntOrNull() ?: 10,
+                            eveningCount.toIntOrNull() ?: 2
+                        ) else emptyList()
+                        onApply(mSlots, aSlots, eSlots)
+                    }) { Text("应用") }
+                }
             }
         }
-    )
+    }
 }
 
 private fun genSlots(h: Int, m: Int, d: Int, b: Int, c: Int): List<String> {

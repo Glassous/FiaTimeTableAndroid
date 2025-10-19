@@ -287,7 +287,7 @@ class WeekViewViewModel(private val repository: TimeTableRepository) : ViewModel
     }
     
     /**
-     * 删除课程
+     * 删除课程（删除整个格子的内容）
      */
     fun deleteCourse(dayIndex: Int, timeSlotIndex: Int) {
         viewModelScope.launch {
@@ -384,6 +384,101 @@ class WeekViewViewModel(private val repository: TimeTableRepository) : ViewModel
             }
         }
     }
+
+    /**
+     * 删除指定课程：仅移除给定课程，并根据剩余课程重新调整延续标记
+     */
+    fun deleteSpecificCourse(target: Course, dayIndex: Int, timeSlotIndex: Int) {
+        viewModelScope.launch {
+            try {
+                val currentData = _timeTableData.value
+                val currentTerm = _selectedTerm.value
+
+                val updatedCourses = currentData.courses.toMutableMap()
+                val termCourses = updatedCourses[currentTerm]?.toMutableMap() ?: mutableMapOf()
+                val dayCourses = termCourses[dayIndex]?.toMutableMap() ?: mutableMapOf()
+
+                val origin = dayCourses[timeSlotIndex]
+                val remaining: List<Course> = when (origin) {
+                    is List<*> -> origin.filterIsInstance<Course>().filterNot { it == target }
+                    is Map<*, *> -> {
+                        // 若点击的是延续格，定位到起始格
+                        val from = (origin["fromSlot"] as? Number)?.toInt() ?: timeSlotIndex
+                        val o = dayCourses[from]
+                        val list = if (o is List<*>) o.filterIsInstance<Course>() else emptyList()
+                        val filtered = list.filterNot { it == target }
+                        // 清理旧延续标记（以原始最大duration为准）
+                        val maxPrevDuration = list.maxOfOrNull { it.duration } ?: 1
+                        for (i in 1 until maxPrevDuration) {
+                            val s = from + i
+                            dayCourses.remove(s)
+                        }
+                        // 写回起始格剩余课程（为空则移除键）
+                        if (filtered.isEmpty()) {
+                            dayCourses.remove(from)
+                        } else {
+                            dayCourses[from] = filtered
+                        }
+                        // 根据剩余课程的最大duration重建延续标记
+                        val maxNewDuration = filtered.maxOfOrNull { it.duration } ?: 1
+                        if (maxNewDuration > 1) {
+                            for (i in 1 until maxNewDuration) {
+                                val s = from + i
+                                if (s < currentData.timeSlots.size) {
+                                    dayCourses[s] = mapOf(
+                                        "continued" to true,
+                                        "fromSlot" to from
+                                    )
+                                }
+                            }
+                        }
+                        termCourses[dayIndex] = dayCourses
+                        updatedCourses[currentTerm] = termCourses
+                        val updatedData = currentData.copy(courses = updatedCourses)
+                        _timeTableData.value = updatedData
+                        repository.saveTimeTableData(updatedData)
+                        return@launch
+                    }
+                    else -> emptyList()
+                }
+
+                // 非延续格：直接处理起始格
+                // 先清理旧延续标记（根据删除前的最大duration）
+                val maxPrevDuration = (origin as? List<*>)?.filterIsInstance<Course>()?.maxOfOrNull { it.duration } ?: 1
+                for (i in 1 until maxPrevDuration) {
+                    val s = timeSlotIndex + i
+                    dayCourses.remove(s)
+                }
+                // 写回起始格
+                if (remaining.isEmpty()) {
+                    dayCourses.remove(timeSlotIndex)
+                } else {
+                    dayCourses[timeSlotIndex] = remaining
+                }
+                // 重建延续标记（根据剩余课程最大duration）
+                val maxNewDuration = remaining.maxOfOrNull { it.duration } ?: 1
+                if (maxNewDuration > 1) {
+                    for (i in 1 until maxNewDuration) {
+                        val s = timeSlotIndex + i
+                        if (s < currentData.timeSlots.size) {
+                            dayCourses[s] = mapOf(
+                                "continued" to true,
+                                "fromSlot" to timeSlotIndex
+                            )
+                        }
+                    }
+                }
+
+                termCourses[dayIndex] = dayCourses
+                updatedCourses[currentTerm] = termCourses
+                val updatedData = currentData.copy(courses = updatedCourses)
+                _timeTableData.value = updatedData
+                repository.saveTimeTableData(updatedData)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
     
     /**
      * 创建默认数据用于演示
@@ -419,7 +514,7 @@ class WeekViewViewModel(private val repository: TimeTableRepository) : ViewModel
                                 notes = ""
                             )
                         ),
-                        1 to mapOf("continued" to true)
+                        1 to mapOf("continued" to true, "fromSlot" to 0)
                     ),
                     // 周二
                     1 to mapOf(
@@ -436,7 +531,7 @@ class WeekViewViewModel(private val repository: TimeTableRepository) : ViewModel
                                 notes = ""
                             )
                         ),
-                        3 to mapOf("continued" to true)
+                        3 to mapOf("continued" to true, "fromSlot" to 2)
                     ),
                     // 周三
                     2 to mapOf(
@@ -453,8 +548,8 @@ class WeekViewViewModel(private val repository: TimeTableRepository) : ViewModel
                                 notes = ""
                             )
                         ),
-                        5 to mapOf("continued" to true),
-                        6 to mapOf("continued" to true)
+                        5 to mapOf("continued" to true, "fromSlot" to 4),
+                        6 to mapOf("continued" to true, "fromSlot" to 4)
                     )
                 )
             ),

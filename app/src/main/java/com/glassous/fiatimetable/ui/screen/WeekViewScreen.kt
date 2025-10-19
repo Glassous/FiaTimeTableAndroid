@@ -88,12 +88,18 @@ fun WeekViewScreen() {
     
     // Bottom Sheet 状态
     var showBottomSheet by remember { mutableStateOf(false) }
-    var bottomSheetDayIndex by remember { mutableStateOf(-1) }
-    var bottomSheetSlotIndex by remember { mutableStateOf(-1) }
+    var bottomSheetDayIndex by remember { mutableStateOf(0) }
+    var bottomSheetSlotIndex by remember { mutableStateOf(0) }
     var bottomSheetCourses by remember { mutableStateOf(listOf<Course>()) }
     
     // 区分新增/编辑模式
     var isAddNew by remember { mutableStateOf(false) }
+    
+    // 删除确认相关状态
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var deletingCourse by remember { mutableStateOf<Course?>(null) }
+    var deleteDayIndex by remember { mutableStateOf(0) }
+    var deleteSlotIndex by remember { mutableStateOf(0) }
     
     // 处理格子点击事件
     val handleCellClick = { dayIndex: Int, timeSlotIndex: Int ->
@@ -189,6 +195,16 @@ fun WeekViewScreen() {
                                 showBottomSheet = false
                                 showEditDialog = true
                             }) { Text("编辑") }
+                            OutlinedButton(onClick = {
+                                val raw = timeTableData.courses[selectedTerm]?.get(bottomSheetDayIndex)?.get(bottomSheetSlotIndex)
+                                val originSlot = if (raw is Map<*, *> && raw["continued"] == true) {
+                                    (raw["fromSlot"] as? Number)?.toInt() ?: bottomSheetSlotIndex
+                                } else bottomSheetSlotIndex
+                                deletingCourse = course
+                                deleteDayIndex = bottomSheetDayIndex
+                                deleteSlotIndex = originSlot
+                                showDeleteConfirm = true
+                            }) { Text("删除") }
                         }
                         Spacer(modifier = Modifier.height(12.dp))
                     }
@@ -215,10 +231,29 @@ fun WeekViewScreen() {
     
     // 课程编辑对话框
     if (showEditDialog) {
+        // 计算学期总周数
+        val termWeeks = timeTableData.terms.find { it.name == selectedTerm }?.weeks ?: 16
+        // 计算该起始格的已有课程与占用周次
+        val originData = timeTableData.courses[selectedTerm]?.get(editingDayIndex)?.get(editingTimeSlotIndex)
+        val originCourses = when (originData) {
+            is List<*> -> originData.filterIsInstance<Course>()
+            else -> emptyList()
+        }
+        val occupiedWeeks = if (isAddNew) {
+            originCourses.flatMap { it.selectedWeeks }.toSet()
+        } else {
+            originCourses.filter { it != editingCourse }.flatMap { it.selectedWeeks }.toSet()
+        }
+        val usedColors = originCourses.map { it.color }.toSet()
+        val initialColor = TimeTableData.presetColors.firstOrNull { it !in usedColors } ?: TimeTableData.presetColors.first()
+
         CourseEditDialog(
             course = editingCourse,
             dayIndex = editingDayIndex,
             timeSlotIndex = editingTimeSlotIndex,
+            termWeeks = termWeeks,
+            occupiedWeeks = occupiedWeeks,
+            initialColor = if (isAddNew) initialColor else null,
             onDismiss = { 
                 showEditDialog = false 
                 editingCourse = null
@@ -231,6 +266,26 @@ fun WeekViewScreen() {
                 }
                 showEditDialog = false
                 editingCourse = null
+            }
+        )
+    }
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("删除课程") },
+            text = { Text("确认删除该课程？此操作不可恢复。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    deletingCourse?.let {
+                        viewModel.deleteSpecificCourse(it, deleteDayIndex, deleteSlotIndex)
+                    }
+                    showDeleteConfirm = false
+                    showBottomSheet = false
+                    deletingCourse = null
+                }) { Text("删除") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") }
             }
         )
     }

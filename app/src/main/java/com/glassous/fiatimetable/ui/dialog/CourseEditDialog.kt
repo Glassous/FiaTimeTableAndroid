@@ -25,19 +25,25 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.glassous.fiatimetable.data.model.Course
 import com.glassous.fiatimetable.data.model.TimeTableData
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 
 /**
  * 课程编辑对话框
  * 严格遵循 DATA_STRUCTURE.md 中的字段定义
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun CourseEditDialog(
     course: Course? = null,
     dayIndex: Int,
     timeSlotIndex: Int,
+    termWeeks: Int,
+    occupiedWeeks: Set<Int>,
+    initialColor: String? = null,
     onDismiss: () -> Unit,
     onSave: (Course) -> Unit
 ) {
@@ -46,9 +52,11 @@ fun CourseEditDialog(
     var courseType by remember { mutableStateOf(course?.courseType ?: "课程") }
     var duration by remember { mutableStateOf(course?.duration ?: 1) }
     var durationText by remember { mutableStateOf((course?.duration ?: 1).toString()) }
-    var weeksRange by remember { mutableStateOf(course?.weeksRange ?: "1-16") }
-    var selectedColor by remember { mutableStateOf(course?.color ?: TimeTableData.presetColors.first()) }
-    
+    var selectedColor by remember { mutableStateOf(course?.color ?: (initialColor ?: TimeTableData.presetColors.first())) }
+
+    // 周次选择状态（卡片式）
+    var selectedWeeks by remember { mutableStateOf(course?.selectedWeeks ?: emptyList()) }
+
     // 可选字段状态
     var teacher by remember { mutableStateOf(course?.teacher ?: "") }
     var room by remember { mutableStateOf(course?.room ?: "") }
@@ -71,25 +79,25 @@ fun CourseEditDialog(
     var referenceBooks by remember { mutableStateOf(course?.referenceBooks ?: "") }
     var capacity by remember { mutableStateOf(course?.capacity ?: 0) }
     var enrolled by remember { mutableStateOf(course?.enrolled ?: 0) }
-    
+
     // 课程类型选项
     val courseTypes = listOf("课程", "实验", "实习", "讲座", "选修", "必修")
     val courseAttrs = listOf("必修", "选修", "限选")
     val assessTypes = listOf("考试", "考查")
     val examTypes = listOf("闭卷", "开卷", "论文")
-    
+
     // 表单验证
     val isValid = courseName.isNotBlank() && 
                   courseType.isNotBlank() && 
                   (durationText.toIntOrNull()?.let { it in 1..8 } ?: false) && 
-                  weeksRange.isNotBlank() && 
+                  selectedWeeks.isNotEmpty() && 
                   selectedColor.isNotBlank()
-    
-    Dialog(onDismissRequest = onDismiss) {
+
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Card(
             modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.9f)
+                .fillMaxWidth(0.98f)
+                .fillMaxHeight(0.95f)
                 .padding(16.dp),
             shape = RoundedCornerShape(16.dp)
         ) {
@@ -97,7 +105,6 @@ fun CourseEditDialog(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(16.dp)
-                    .verticalScroll(rememberScrollState())
             ) {
                 // 标题
                 Text(
@@ -107,6 +114,7 @@ fun CourseEditDialog(
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
                 
+                Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                 // 必填字段
                 Text(
                     text = "基本信息 *",
@@ -180,16 +188,78 @@ fun CourseEditDialog(
                     isError = durationText.toIntOrNull()?.let { it !in 1..8 } ?: true
                 )
                 
-                // 周次范围
-                OutlinedTextField(
-                    value = weeksRange,
-                    onValueChange = { weeksRange = it },
-                    label = { Text("周次范围 (如: 1-16 或 1-8,10-16) *") },
+                // 周次选择（卡片式）
+                Text(
+                    text = "周次选择 *",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                // 单周/双周/全选/清空 快捷设置
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 8.dp)) {
+                    fun canSelect(w: Int): Boolean = !(occupiedWeeks.contains(w) && (course?.selectedWeeks?.contains(w) != true))
+                    AssistChip(onClick = {
+                        selectedWeeks = (1..termWeeks).filter { it % 2 == 1 && canSelect(it) }
+                    }, label = { Text("单周") })
+                    AssistChip(onClick = {
+                        selectedWeeks = (1..termWeeks).filter { it % 2 == 0 && canSelect(it) }
+                    }, label = { Text("双周") })
+                    AssistChip(onClick = {
+                        selectedWeeks = (1..termWeeks).filter { canSelect(it) }
+                    }, label = { Text("全选") })
+                    AssistChip(onClick = { selectedWeeks = emptyList() }, label = { Text("清空") })
+                }
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 8.dp),
-                    isError = weeksRange.isBlank()
-                )
+                        .padding(bottom = 8.dp)
+                ) {
+                    (1..termWeeks).forEach { w ->
+                        val disabled = occupiedWeeks.contains(w) && (course?.selectedWeeks?.contains(w) != true)
+                        val selected = selectedWeeks.contains(w)
+                        val bg = when {
+                            disabled -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            selected -> MaterialTheme.colorScheme.primaryContainer
+                            else -> MaterialTheme.colorScheme.surface
+                        }
+                        val borderColor = when {
+                            disabled -> MaterialTheme.colorScheme.outline
+                            selected -> MaterialTheme.colorScheme.primary
+                            else -> MaterialTheme.colorScheme.outline
+                        }
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = bg),
+                            modifier = Modifier
+                                .width(56.dp)
+                                .height(36.dp)
+                                .border(1.dp, borderColor, RoundedCornerShape(8.dp))
+                                .clickable(enabled = !disabled) {
+                                    selectedWeeks = if (selected) selectedWeeks - w else selectedWeeks + w
+                                    selectedWeeks = selectedWeeks.distinct().sorted()
+                                }
+                        ) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text(text = w.toString(), style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+                    }
+                }
+                if (selectedWeeks.isEmpty()) {
+                    Text(
+                        text = "请选择至少一个周次",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                } else {
+                    Text(
+                        text = formatWeeksRange(selectedWeeks),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
                 
                 // 课程颜色
                 Text(
@@ -197,10 +267,10 @@ fun CourseEditDialog(
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(bottom = 4.dp)
                 )
-                
+                var showColorPicker by remember { mutableStateOf(false) }
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(bottom = 16.dp)
+                    modifier = Modifier.padding(bottom = 8.dp)
                 ) {
                     items(TimeTableData.presetColors) { color ->
                         Box(
@@ -219,6 +289,16 @@ fun CourseEditDialog(
                                 .clickable { selectedColor = color }
                         )
                     }
+                }
+                OutlinedButton(onClick = { showColorPicker = true }, modifier = Modifier.padding(bottom = 16.dp)) {
+                    Text("自定义颜色")
+                }
+                if (showColorPicker) {
+                    ColorPickerDialog(
+                        initialHex = selectedColor,
+                        onDismiss = { showColorPicker = false },
+                        onConfirm = { hex -> selectedColor = hex; showColorPicker = false }
+                    )
                 }
                 
                 // 可选字段
@@ -521,6 +601,9 @@ fun CourseEditDialog(
                     )
                 }
                 
+                // 结束可滚动区域
+                }
+                
                 // 按钮
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -536,14 +619,11 @@ fun CourseEditDialog(
                     Button(
                         onClick = {
                             if (isValid) {
-                                // 解析周次范围为selectedWeeks
-                                val selectedWeeks = parseWeeksRange(weeksRange)
-                                
                                 val newCourse = Course(
                                     courseName = courseName,
                                     courseType = courseType,
                                     duration = duration,
-                                    weeksRange = weeksRange,
+                                    weeksRange = formatWeeksRange(selectedWeeks),
                                     selectedWeeks = selectedWeeks,
                                     color = selectedColor,
                                     teacher = teacher,
@@ -579,33 +659,82 @@ fun CourseEditDialog(
     }
 }
 
-/**
- * 解析周次范围字符串为周次列表
- * 例如: "1-16" -> [1,2,3,...,16]
- * 例如: "1-8,10-16" -> [1,2,3,4,5,6,7,8,10,11,12,13,14,15,16]
- */
-private fun parseWeeksRange(weeksRange: String): List<Int> {
-    val weeks = mutableListOf<Int>()
-    try {
-        val ranges = weeksRange.split(",")
-        for (range in ranges) {
-            val trimmedRange = range.trim()
-            if (trimmedRange.contains("-")) {
-                val parts = trimmedRange.split("-")
-                if (parts.size == 2) {
-                    val start = parts[0].trim().toInt()
-                    val end = parts[1].trim().toInt()
-                    for (week in start..end) {
-                        weeks.add(week)
-                    }
-                }
-            } else {
-                weeks.add(trimmedRange.toInt())
-            }
+// 将周次列表压缩为区间字符串，如 [1,2,3,5,7,8] -> "1-3,5,7-8"
+private fun formatWeeksRange(weeks: List<Int>): String {
+    if (weeks.isEmpty()) return ""
+    val sorted = weeks.distinct().sorted()
+    val sb = StringBuilder()
+    var start = sorted.first()
+    var prev = start
+    for (i in 1 until sorted.size) {
+        val cur = sorted[i]
+        if (cur == prev + 1) {
+            prev = cur
+        } else {
+            if (start == prev) sb.append(start) else sb.append("$start-$prev")
+            sb.append(',')
+            start = cur
+            prev = cur
         }
-    } catch (e: Exception) {
-        // 解析失败时返回默认范围
-        return (1..16).toList()
     }
-    return weeks.distinct().sorted()
+    if (start == prev) sb.append(start) else sb.append("$start-$prev")
+    return sb.toString()
+}
+
+@Composable
+private fun ColorPickerDialog(initialHex: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var hexText by remember { mutableStateOf(initialHex) }
+    var r by remember { mutableStateOf(try { Color(android.graphics.Color.parseColor(initialHex)).red } catch (_: Exception) { 1f }) }
+    var g by remember { mutableStateOf(try { Color(android.graphics.Color.parseColor(initialHex)).green } catch (_: Exception) { 1f }) }
+    var b by remember { mutableStateOf(try { Color(android.graphics.Color.parseColor(initialHex)).blue } catch (_: Exception) { 1f }) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("选择颜色") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // 预览
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(40.dp)
+                        .background(Color(r, g, b))
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                // Hex 输入
+                OutlinedTextField(
+                    value = hexText,
+                    onValueChange = {
+                        hexText = it
+                        runCatching {
+                            val c = Color(android.graphics.Color.parseColor(it))
+                            r = c.red; g = c.green; b = c.blue
+                        }
+                    },
+                    label = { Text("HEX，如 #4CAF50") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                )
+                // RGB 滑条
+                Text("R")
+                Slider(value = r, onValueChange = { r = it; hexText = toHex(r, g, b) }, valueRange = 0f..1f)
+                Text("G")
+                Slider(value = g, onValueChange = { g = it; hexText = toHex(r, g, b) }, valueRange = 0f..1f)
+                Text("B")
+                Slider(value = b, onValueChange = { b = it; hexText = toHex(r, g, b) }, valueRange = 0f..1f)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(toHex(r, g, b)) }) { Text("确定") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        }
+    )
+}
+
+private fun toHex(r: Float, g: Float, b: Float): String {
+    val rr = (r * 255).toInt().coerceIn(0, 255)
+    val gg = (g * 255).toInt().coerceIn(0, 255)
+    val bb = (b * 255).toInt().coerceIn(0, 255)
+    return String.format("#%02X%02X%02X", rr, gg, bb)
 }
