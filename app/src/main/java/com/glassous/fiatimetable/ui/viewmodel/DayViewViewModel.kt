@@ -220,6 +220,20 @@ class DayViewViewModel(private val repository: TimeTableRepository) : ViewModel(
             else -> null
         }
     }
+
+    // 新增：同步周与日索引，用于 Pager 改变页面时更新状态
+    fun setWeekAndDay(week: Int, dayIndex: Int) {
+        val term = _timeTableData.value.terms.find { it.name == _selectedTerm.value }
+        val boundedWeek = if (term != null) week.coerceIn(1, term.weeks) else week.coerceAtLeast(1)
+        val boundedDay = dayIndex.coerceIn(0, 6)
+        val weekChanged = boundedWeek != _currentWeek.value
+        _currentWeek.value = boundedWeek
+        _currentDayIndex.value = boundedDay
+        if (weekChanged) {
+            recomputeWeekDatesOnly()
+        }
+    }
+
     /** 创建默认数据用于演示 */
     private fun createDefaultData(): TimeTableData {
         return TimeTableData(

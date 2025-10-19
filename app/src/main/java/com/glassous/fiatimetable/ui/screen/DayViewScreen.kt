@@ -30,28 +30,31 @@ import com.glassous.fiatimetable.data.model.TimeTableData
 import com.glassous.fiatimetable.ui.viewmodel.DayViewViewModel
 import com.glassous.fiatimetable.ui.viewmodel.DayViewViewModelFactory
 
+// Pager 相关
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
+import androidx.compose.foundation.pager.rememberPagerState
+
 private fun segmentOf(slot: String): String {
-    val normalized = slot.replace("~", "-").replace("—", "-").replace("–", "-")
-    val start = normalized.substringBefore("-")
-    val hour = start.substringBefore(":").toIntOrNull() ?: 0
-    return when {
-        hour < 12 -> "morning"
-        hour < 18 -> "afternoon"
+    val parts = slot.split(":")
+    val time = parts.firstOrNull() ?: return ""
+    val hour = time.split("-").firstOrNull()?.split(":")?.firstOrNull()?.toIntOrNull() ?: return ""
+    return when (hour) {
+        in 6..11 -> "morning"
+        in 12..17 -> "afternoon"
         else -> "evening"
     }
 }
 
-// 新增：解析时间段的结束时间用于“已上完”判断
 private fun endTimeOf(slot: String): java.time.LocalTime {
-    val normalized = slot.replace("~", "-").replace("—", "-").replace("–", "-")
-    val endStr = normalized.substringAfter("-")
-    val parts = endStr.split(":")
-    val h = parts.getOrNull(0)?.toIntOrNull() ?: 0
-    val m = parts.getOrNull(1)?.toIntOrNull() ?: 0
+    val end = slot.split("-").getOrNull(1) ?: "00:00"
+    val h = end.split(":").getOrNull(0)?.toIntOrNull() ?: 0
+    val m = end.split(":").getOrNull(1)?.toIntOrNull() ?: 0
     return java.time.LocalTime.of(h, m)
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun DayViewScreen() {
     val context = LocalContext.current
@@ -76,7 +79,7 @@ fun DayViewScreen() {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // 预告逻辑：预先计算标题使用的显示索引与日期（满足“直接从明天开始”）
+    // 预告逻辑（标题用）
     val timeSlotsForPreview = timeTableData.timeSlots
     val todayHasCoursePreview = timeSlotsForPreview.indices.any { viewModel.cellForWeek(currentDayIndex, it) != null }
     val lastSlotWithCoursePreview = timeSlotsForPreview.indices.filter { viewModel.cellForWeek(currentDayIndex, it) != null }.lastOrNull()
@@ -100,6 +103,29 @@ fun DayViewScreen() {
         }
     } else {
         weekDates.getOrNull(currentDayIndex) ?: ""
+    }
+
+    // Pager 状态（总天数 = 学期周数 * 7）
+    val termWeeks = timeTableData.terms.find { it.name == selectedTerm }?.weeks ?: currentWeek
+    val totalDays = (termWeeks * 7).coerceAtLeast(7)
+    val initialPage = ((currentWeek - 1) * 7 + currentDayIndex).coerceIn(0, totalDays - 1)
+    val pagerState = rememberPagerState(initialPage = initialPage) { totalDays }
+
+    // 外部状态变化时，同步 Pager 页码
+    LaunchedEffect(currentWeek, currentDayIndex, totalDays) {
+        val target = ((currentWeek - 1) * 7 + currentDayIndex).coerceIn(0, totalDays - 1)
+        if (pagerState.currentPage != target) {
+            pagerState.scrollToPage(target)
+        }
+    }
+    // Pager 页码变化时，更新 ViewModel 周/日状态
+    LaunchedEffect(pagerState.currentPage) {
+        val page = pagerState.currentPage
+        val pageWeek = page / 7 + 1
+        val pageDay = page % 7
+        if (pageWeek != currentWeek || pageDay != currentDayIndex) {
+            viewModel.setWeekAndDay(pageWeek, pageDay)
+        }
     }
 
     Scaffold(
@@ -135,67 +161,88 @@ fun DayViewScreen() {
             )
         }
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(12.dp)) {
-            // 时间段 + 课程列表（纵向）
+        HorizontalPager(
+            state = pagerState,
+            beyondViewportPageCount = 1,
+            flingBehavior = PagerDefaults.flingBehavior(state = pagerState),
+            modifier = Modifier.fillMaxSize()
+        ) { page ->
             val timeSlots = timeTableData.timeSlots
             val hasEveningSlots = timeSlots.any { segmentOf(it) == "evening" }
-            // 新增：判断是否展示明日课程预告（仅在“今天”视图）
-            val todayHasCourse = timeSlots.indices.any { viewModel.cellForWeek(currentDayIndex, it) != null }
-            val lastSlotWithCourse = timeSlots.indices.filter { viewModel.cellForWeek(currentDayIndex, it) != null }.lastOrNull()
+
+            val pageWeek = page / 7 + 1
+            val pageDayIndex = page % 7
+
+            // 仅当该页是“今天”时应用明日预告逻辑
+            val dfYMD = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd")
+            val term = timeTableData.terms.find { it.name == selectedTerm }
+            val todayIndex = java.time.LocalDate.now().dayOfWeek.value.let { it - 1 }.coerceIn(0, 6)
+            val todayWeek = if (term != null) {
+                val start = java.time.LocalDate.parse(term.startDate, dfYMD)
+                val days = java.time.temporal.ChronoUnit.DAYS.between(start, java.time.LocalDate.now()).toInt()
+                val computed = if (days >= 0) (days / 7) + 1 else 1
+                computed.coerceIn(1, termWeeks)
+            } else pageWeek
+            val isPageToday = (pageDayIndex == todayIndex) && (pageWeek == todayWeek)
+
+            val todayHasCourse = timeSlots.indices.any { viewModel.cellForWeekIndex(pageDayIndex, it, pageWeek) != null }
+            val lastSlotWithCourse = timeSlots.indices.filter { viewModel.cellForWeekIndex(pageDayIndex, it, pageWeek) != null }.lastOrNull()
             val alreadyFinishedToday = lastSlotWithCourse?.let { java.time.LocalTime.now().isAfter(endTimeOf(timeSlots[it])) } ?: false
-            val showTomorrowPreview = viewModel.isAtToday() && (!todayHasCourse || alreadyFinishedToday)
-            val displayDayIndex = if (showTomorrowPreview) (currentDayIndex + 1) % 7 else currentDayIndex
-            val termWeeks = timeTableData.terms.find { it.name == selectedTerm }?.weeks ?: currentWeek
-            val displayWeek = if (showTomorrowPreview && currentDayIndex == 6) (currentWeek + 1).coerceAtMost(termWeeks) else currentWeek
+            val showTomorrowPreview = isPageToday && (!todayHasCourse || alreadyFinishedToday)
+            val displayDayIndex = if (showTomorrowPreview) (pageDayIndex + 1) % 7 else pageDayIndex
+            val displayWeek = if (showTomorrowPreview && pageDayIndex == 6) (pageWeek + 1).coerceAtMost(termWeeks) else pageWeek
 
-            if (timeSlots.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(text = "暂无时间段设置", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            } else {
-                if (showTomorrowPreview) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 44.dp)
-                            .padding(bottom = 8.dp)
-                            .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(6.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "明日课程预告",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.padding(vertical = 12.dp)
+            Column(modifier = Modifier.fillMaxSize().padding(padding).padding(12.dp)) {
+                if (timeSlots.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(text = "暂无时间段设置", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                } else {
+                    if (showTomorrowPreview) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 44.dp)
+                                .padding(bottom = 8.dp)
+                                .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(6.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "明日课程预告",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.padding(vertical = 12.dp)
+                            )
+                        }
+                    }
+
+                    timeSlots.forEachIndexed { slotIndex, slotLabel ->
+                        val currentSegment = segmentOf(slotLabel)
+                        val previousSegment = if (slotIndex > 0) segmentOf(timeSlots[slotIndex - 1]) else null
+                        if (slotIndex > 0 && currentSegment != previousSegment) {
+                            val breakLabel = when {
+                                previousSegment == "morning" && currentSegment == "afternoon" -> "午休"
+                                previousSegment == "afternoon" && currentSegment == "evening" && hasEveningSlots -> "晚休"
+                                else -> null
+                            }
+                            if (breakLabel != null && showBreaks) {
+                                BreakHeader(breakLabel)
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+                        }
+
+                        val cell = viewModel.cellForWeekIndex(displayDayIndex, slotIndex = slotIndex, week = displayWeek)
+                        DayCourseRow(
+                            slotLabel = slotLabel,
+                            cellData = cell,
+                            dayIndex = displayDayIndex,
+                            slotIndex = slotIndex,
+                            timeTableData = timeTableData,
+                            selectedTerm = selectedTerm,
+                            currentWeek = displayWeek
                         )
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
-                }
-                timeSlots.forEachIndexed { slotIndex, slotLabel ->
-                    val currentSegment = segmentOf(slotLabel)
-                    val previousSegment = if (slotIndex > 0) segmentOf(timeSlots[slotIndex - 1]) else null
-                    if (slotIndex > 0 && currentSegment != previousSegment) {
-                        val breakLabel = when {
-                            previousSegment == "morning" && currentSegment == "afternoon" -> "午休"
-                            previousSegment == "afternoon" && currentSegment == "evening" && hasEveningSlots -> "晚休"
-                            else -> null
-                        }
-                        if (breakLabel != null && showBreaks) {
-                            BreakHeader(breakLabel)
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
-                    }
-
-                    val cell = viewModel.cellForWeekIndex(displayDayIndex, slotIndex = slotIndex, week = displayWeek)
-                    DayCourseRow(
-                        slotLabel = slotLabel,
-                        cellData = cell,
-                        dayIndex = displayDayIndex,
-                        slotIndex = slotIndex,
-                        timeTableData = timeTableData,
-                        selectedTerm = selectedTerm,
-                        currentWeek = displayWeek
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
                 }
             }
         }
@@ -238,7 +285,7 @@ private fun DayCourseRow(
             Text(text = slotLabel, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Spacer(modifier = Modifier.width(8.dp))
-        // 课程格
+        // 课程格（恢复为外部无边框样式）
         CourseCellForDay(
             cellData = cellData,
             dayIndex = dayIndex,
@@ -261,28 +308,19 @@ private fun CourseCellForDay(
     currentWeek: Int,
     modifier: Modifier = Modifier
 ) {
+    val shape = RoundedCornerShape(6.dp)
     Box(
         modifier = modifier
-            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(6.dp))
-            .clip(RoundedCornerShape(6.dp))
-            .then(
-                // 仅在非空格子时显示边框
-                when (cellData) {
-                    is List<*> -> if (cellData.filterIsInstance<Course>().isNotEmpty()) Modifier.border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(6.dp)) else Modifier
-                    is Map<*, *> -> if (cellData["continued"] == true) Modifier.border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(6.dp)) else Modifier
-                    else -> Modifier
-                }
-            )
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surface, shape)
     ) {
         when (cellData) {
             is List<*> -> {
                 val course = cellData.filterIsInstance<Course>().firstOrNull()
-                if (course != null) CourseContent(course)
-                else EmptyCourseCell()
+                if (course != null) CourseContent(course) else EmptyCourseCell()
             }
             is Map<*, *> -> {
                 if (cellData["continued"] == true) {
-                    // 查找原始课程以获取颜色与名称（兼容未存储color/courseName的延续标记）
                     val from = (cellData["fromSlot"] as? Number)?.toInt() ?: slotIndex
                     val origin = timeTableData.courses[selectedTerm]?.get(dayIndex)?.get(from)
                     val originCourse = when (origin) {
@@ -292,7 +330,6 @@ private fun CourseCellForDay(
                     if (originCourse != null) {
                         ContinuationCell(colorHex = originCourse.color, courseName = originCourse.courseName)
                     } else {
-                        // 无法确定原始课程：显示浅灰占位
                         Box(
                             modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
                             contentAlignment = Alignment.Center
@@ -315,7 +352,10 @@ private fun CourseContent(course: Course) {
         MaterialTheme.colorScheme.primary
     }
     Box(
-        modifier = Modifier.fillMaxSize().background(backgroundColor.copy(alpha = 0.85f)).padding(6.dp)
+        modifier = Modifier
+            .fillMaxSize()
+            .background(backgroundColor.copy(alpha = 0.85f))
+            .padding(6.dp)
     ) {
         Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
             Text(
