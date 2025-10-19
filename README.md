@@ -1,169 +1,110 @@
-# FiaTimeTable
+# FiaTimeTable Android
 
-一个基于Android平台的现代化课程表应用，采用Jetpack Compose构建，提供直观的周视图和日视图，帮助用户高效管理课程安排。
+一个以 Jetpack Compose 构建的现代课程表应用，提供周视图与日视图、灵活的时间段设置、数据备份/导入，以及基于阿里云 OSS 的云端同步。项目采用 MVVM 架构，使用 SharedPreferences + Gson 持久化数据。
 
-## 功能特点
+## 亮点功能
 
-- 📅 **多视图模式**：支持周视图和日视图两种显示模式，满足不同场景需求
-- 📚 **完整的课程管理**：支持添加、编辑、删除课程，包含丰富的课程属性
-- 🎨 **自定义颜色**：为每门课程设置不同颜色，便于区分
-- 📱 **现代化UI**：采用Material Design 3设计语言，界面美观易用
-- 🌓 **主题切换**：支持浅色、深色和跟随系统三种主题模式
-- 🔄 **学期管理**：支持多学期切换，适应不同学期的课程安排
-- 💾 **数据导入导出**：支持课程数据的导入导出，方便数据迁移和备份
-- 🌐 **网络课程支持**：单独管理网络选修课，不占用固定时间段
-- ⏰ **灵活时间段**：可自定义每日时间段设置
+- 周视图与日视图：在周视图快速定位课程、支持“纯净模式”沉浸显示；日视图支持前后天切换与“明日课程预览”。
+- 课程管理：添加/编辑/删除课程，支持多节连排（自动生成延续标记）。
+- 学期管理与时间段：管理学期（名称、总周数、开学日期），提供“早/午/晚”分段与快速配置对话框。
+- 在线课程：单独管理不占固定时间段的网络课程。
+- 显示选项：可切换“显示周末”“显示休息分隔”。
+- 主题与起始页：支持系统/浅色/深色主题与默认起始页（日/周）。
+- 数据备份与导入：导出为 JSON，支持从备份 JSON 导入；并可一键上传/下载到阿里云 OSS。
 
-## 技术栈
+## 架构与存储
 
-- **开发语言**：Kotlin
-- **UI框架**：Jetpack Compose
-- **架构模式**：MVVM (Model-View-ViewModel)
-- **导航**：Navigation Compose
-- **数据存储**：本地存储 (SharedPreferences)
-- **最低支持版本**：Android 12 (API 31)
-- **目标版本**：Android 15 (API 36)
+- 技术栈：Kotlin、Jetpack Compose、Navigation Compose、MVVM。
+- 数据仓库：`TimeTableRepository` 使用 `SharedPreferences` 存储，`Gson` 序列化/反序列化。
+- 视图模型：`SettingsViewModel`、`WeekViewViewModel`、`DayViewViewModel`。
+- 导航：`Screen` 枚举路由；`MainActivity` 初始化 `NavController` 与 `NavHost`。
 
-## 项目结构
+## 构建环境
 
-```
-app/
-├── src/main/
-│   ├── java/com/glassous/fiatimetable/
-│   │   ├── data/
-│   │   │   ├── model/           # 数据模型
-│   │   │   │   ├── Course.kt    # 课程数据模型
-│   │   │   │   ├── OnlineCourse.kt  # 网络课程数据模型
-│   │   │   │   ├── Term.kt      # 学期数据模型
-│   │   │   │   └── TimeTableData.kt  # 课程表数据结构
-│   │   │   └── repository/      # 数据仓库层
-│   │   ├── navigation/
-│   │   │   └── Screen.kt        # 导航屏幕定义
-│   │   ├── ui/
-│   │   │   ├── components/      # UI组件
-│   │   │   ├── dialog/          # 对话框组件
-│   │   │   ├── screen/          # 屏幕UI
-│   │   │   │   ├── DayViewScreen.kt    # 日视图
-│   │   │   │   ├── WeekViewScreen.kt   # 周视图
-│   │   │   │   └── SettingsScreen.kt   # 设置页面
-│   │   │   ├── theme/           # 主题相关
-│   │   │   └── viewmodel/       # 视图模型
-│   │   └── MainActivity.kt      # 主活动
-│   └── res/                     # 资源文件
-├── build.gradle.kts             # 应用构建配置
-└── DATA_STRUCTURE.md            # 数据结构文档
-```
+- 编译/目标/最低：`compileSdk=36`、`targetSdk=36`、`minSdk=31`
+- Kotlin：`2.0.21`（JVM target `11`）
+- Compose BOM：`2024.09.00`
+- Android Gradle Plugin：`8.11.2`，Gradle：`8.13`
+- 关键依赖：`androidx.compose` 系列、`navigation-compose:2.8.5`、`lifecycle-runtime-ktx:2.9.4`、`lifecycle-viewmodel-compose:2.9.4`、`gson:2.11.0`、`com.aliyun.dpa:oss-android-sdk:2.9.11`
 
-## 数据结构
+## 权限
 
-应用使用本地存储保存课程数据，主要包含以下数据集：
-
-- **学期信息** (`xf_terms`): 存储所有学期的基本信息
-- **课程数据** (`xf_courses`): 按学期、星期、时间段三级嵌套存储课程信息
-- **网络选修课** (`xf_onlineCourses`): 存储不占用固定时间段的网络课程
-- **时间段设置** (`xf_timeSlots`): 定义每日的时间段安排
-- **当前学期** (`xf_term`): 当前选中的学期名称
-- **主题设置** (`xf_theme`): 界面主题设置
-
-详细的数据结构定义请参考 [DATA_STRUCTURE.md](DATA_STRUCTURE.md)
+- 云端同步需要 `android.permission.INTERNET`（已在 `app/src/main/AndroidManifest.xml` 声明）。
 
 ## 安装与运行
 
-### 环境要求
-
-- Android Studio Hedgehog | 2023.1.1 或更高版本
-- JDK 11 或更高版本
-- Android SDK API 31-36
-- Kotlin 2.0.21
-
-### 构建步骤
-
-1. 克隆项目到本地：
-   ```bash
-   git clone https://github.com/Glassous/FiaTimeTableAndroid.git
-   cd FiaTimeTableAndroid
-   ```
-
-2. 使用Android Studio打开项目
-
-3. 等待Gradle同步完成
-
-4. 连接Android设备或启动模拟器
-
-5. 点击运行按钮或使用以下命令：
-   ```bash
-   ./gradlew installDebug
-   ```
+- 开发环境：Android Studio（最新版推荐）、JDK 17、Android SDK API 31–36。
+- 步骤：
+  - 克隆仓库并用 Android Studio 打开。
+  - 等待 Gradle 同步完成，连接设备或启动模拟器。
+  - 运行应用或使用 `./gradlew installDebug`。
 
 ## 使用指南
 
-### 基本操作
+- 周视图（`WeekViewScreen`）
+  - 在顶部/工具栏切换周次：上一周、下一周、返回本周。
+  - 点击空白格添加课程；点击已有课程进入编辑。
+  - 开启“纯净模式”可隐藏系统栏，沉浸显示课程表。
+  - 可在设置中切换 `显示周末` 与 `显示休息分隔`。
+- 日视图（`DayViewScreen`）
+  - 查看当天课程，支持前一天/后一天切换。
+  - 显示“明日课程预览”，便于提前安排。
+- 设置页（`SettingsScreen`）
+  - 界面主题：系统/浅色/深色；起始页：日/周。
+  - 学期管理：名称、总周数、开学日期（日期选择器），支持保存与切换。
+  - 时间段设置：按“早/午/晚”分段添加/移除节次；快速配置可设起始时间、时长、间隔与节次数。
+  - 数据备份与导入：导出课程为 JSON 文件，或从 JSON 文件导入。
+  - 云端同步（OSS）：打开“OSS 配置”对话框完成配置，并在设置页上传/下载备份。
 
-1. **查看课程表**：打开应用默认显示周视图，可以查看一周的课程安排
-2. **切换视图**：点击底部导航栏可以在周视图和日视图之间切换
-3. **添加课程**：在周视图中点击空白时间段，填写课程信息
-4. **编辑课程**：点击已有课程可以编辑课程信息
-5. **切换学期**：在设置页面可以选择不同的学期
+## 云端同步（阿里云 OSS）
 
-### 高级功能
+- 依赖：`com.aliyun.dpa:oss-android-sdk:2.9.11`
+- 配置项（`OssSyncConfig`）：
+  - `endpoint`（必填）：例如 `https://oss-cn-hangzhou.aliyuncs.com`。
+  - `bucketName`（必填）：存储桶名称。
+  - `objectKey`（可选）：对象键，默认 `timetable-data.json`。
+  - `accessKeyId` / `accessKeySecret`（必填）：访问凭证。
+  - `regionId`（可选）：中国大陆区域选择。
+- 操作：
+  - 上传：将导出的备份 JSON 写入缓存后，调用 `OSSClient.putObject` 上传。
+  - 下载：调用 `OSSClient.getObject` 读取备份 JSON 并解析为内部结构。
+- 异常处理：`SettingsViewModel` 对 `ClientException`/`ServiceException` 做错误提示与处理。
+- 安全提示：AK/SK 明文保存在本地 `SharedPreferences`，仅用于个人设备；请勿提交到公共仓库。
 
-1. **数据导入导出**：在设置页面可以导出当前数据为JSON文件，或导入之前备份的数据
-2. **网络课程管理**：在设置页面可以添加不占用固定时间段的网络课程
-3. **自定义时间段**：在设置页面可以调整每日的时间段设置
-4. **主题切换**：在设置页面可以选择浅色、深色或跟随系统主题
+## 数据模型与键位
 
-## 开发计划
+- `Course`：
+  - 基本信息：`courseName`、`courseType`、`duration`、`weeksRange`、`selectedWeeks`、`color`
+  - 教学信息：`teacher`、`room`、`notes`
+  - 详细信息：`courseCode`、`shortName`、`courseNameEn`、`credits`、`department`、`teachingGroup`、`leader`、`courseAttr`、`assessType`、`examType`、`classroomType`、`totalHours`、`referenceBooks`、`capacity`、`enrolled`
+  - 连排标记：`ContinuationMarker` 用于后续节次占位显示（continued）。
+- `OnlineCourse`：`id`、`courseName`、`teacher`、`platform`、`url`、`startWeek`、`endWeek`、`credits`、`notes`
+- `Term`：`name`、`weeks`、`startDate`
+- `TimeTableData`：`terms`、`courses`、`onlineCourses`、`timeSlots`、`selectedTerm`、`theme`
+- 持久化键（SharedPreferences）：
+  - 课程表：`xf_terms`、`xf_courses`、`xf_onlineCourses`、`xf_timeSlots`、`xf_term`、`xf_theme`
+  - 界面偏好：`xf_start_page`、`xf_show_weekend`、`xf_show_breaks`
+  - OSS：`xf_oss_endpoint`、`xf_oss_bucket`、`xf_oss_object_key`、`xf_oss_ak_id`、`xf_oss_ak_secret`、`xf_oss_region`
 
-- [ ] 添加课程提醒功能
-- [ ] 支持课程表小组件
-- [ ] 添加课程统计功能
-- [ ] 支持云同步
-- [ ] 添加更多自定义选项
+## 备份与导入格式
 
-## 贡献指南
+- 导出（`exportBackupJson`）：构造包含 `terms`、`courses`（每格导出一个课程对象，忽略 continued）、`timeSlots`（对象数组：`start`/`end`/`period`）、`selectedTerm`、`theme`、`onlineCourses` 的 JSON。
+- 导入（`importBackupJson`）：兼容示例结构；自动将 `duration` 生成后续节次的 continued 标记，`onlineCourses.id` 统一为字符串。
 
-欢迎提交Issue和Pull Request来帮助改进项目！
+## 贡献
 
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
+- 欢迎提交 Issue / Pull Request 改进项目。
+- 建议在提交前运行构建与基本交互测试，确保不破坏现有功能。
 
 ## 许可证
 
-本项目采用 GNU General Public License v3.0 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
-
-### 许可证摘要
-
-本项目是自由软件：您可以自由地重新分发和/或修改它，但需遵守以下条款：
-
-- **自由使用**：您可以自由地运行、研究、修改和分发本软件
-- **开源要求**：如果您修改了本软件并发布，您必须以相同的GPLv3许可证发布您的修改版本
-- **源码提供**：如果您分发本软件或其修改版本，您必须同时提供完整的源代码
-- **禁止商用**：您不能将本软件或其修改版本用于商业目的
-
-### 对开发者的要求
-
-如果您基于本项目进行二次开发：
-
-1. 您的衍生作品必须也使用GPLv3许可证
-2. 您需要提供完整的源代码
-3. 您需要保留原始版权声明和许可证信息
-4. 您需要明确标明您对代码的修改部分
-
-## 联系方式
-
-如有问题或建议，请通过以下方式联系：
-
-- 提交Issue: [GitHub Issues](https://github.com/Glassous/FiaTimeTableAndroid/issues)
-- 邮箱: yongyanye614@gmail.com
+- 本项目采用 **GNU Affero General Public License v3.0 (AGPLv3)** 许可证。
+- 此许可证要求任何基于本项目的衍生作品也必须开源，包括通过网络服务提供的修改版本。
+- 详细条款请参阅仓库根目录 `LICENSE` 文件与官方文本：`https://www.gnu.org/licenses/agpl-3.0.html`。
 
 ## 致谢
 
-感谢以下开源项目和库：
-
-- [Jetpack Compose](https://developer.android.com/jetpack/compose) - 现代化的Android UI工具包
-- [Navigation Compose](https://developer.android.com/jetpack/compose/navigation) - Compose导航组件
-- [Material Design 3](https://m3.material.io/) - Material Design设计系统
-- [Gson](https://github.com/google/gson) - JSON序列化/反序列化库
+- Jetpack Compose / Material Design 3
+- AndroidX Navigation / Lifecycle
+- Gson（Google）
+- 阿里云 OSS Android SDK

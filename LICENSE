@@ -1,0 +1,25 @@
+GNU GENERAL PUBLIC LICENSE Version 3 (GPLv3)
+
+This project is licensed under the GNU General Public License v3.0.
+
+SPDX-License-Identifier: GPL-3.0-only
+
+Summary (non-substitutive):
+- You may copy, distribute, and modify under the terms of GPLv3.
+- Source code must remain under GPLv3 when distributed.
+- No warranty is provided; see “Disclaimer of Warranty” and “Limitation of Liability”.
+
+Full license text:
+The complete, authoritative text of GPLv3 is available at:
+https://www.gnu.org/licenses/gpl-3.0.txt
+
+For convenience, you may place the GPLv3 text in this file by copying
+from the official link above. If any discrepancy exists, the official
+GNU-hosted text shall prevail.
+
+Copyright Notice:
+Copyright (c) 2025 Glassous and contributors.
+
+Additional Notice:
+- This repository may depend on third-party components under their own licenses.
+- Your use of those components remains subject to their respective terms.
