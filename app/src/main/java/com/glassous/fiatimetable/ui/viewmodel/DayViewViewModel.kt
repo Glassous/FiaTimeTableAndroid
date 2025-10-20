@@ -197,7 +197,7 @@ class DayViewViewModel(private val repository: TimeTableRepository) : ViewModel(
         }
     }
 
-    // 新增：按指定周数返回格子内容，用于“明日课程预告”跨周预览
+    // 按指定周数返回格子内容（供按周索引渲染使用）
     fun cellForWeekIndex(dayIndex: Int, slotIndex: Int, week: Int): Any? {
         val courses = _timeTableData.value.courses[_selectedTerm.value] ?: return null
         val dayCourses = courses[dayIndex] ?: return null

@@ -66,7 +66,7 @@ private fun endTimeOf(slot: String): java.time.LocalTime {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun DayViewScreen(onNavigateCycle: () -> Unit, onNavigateTo: (Screen) -> Unit) {
+fun DayViewScreen(onNavigateCycle: () -> Unit, onStartCourseView: () -> Unit, onNavigateTo: (Screen) -> Unit) {
     val context = LocalContext.current
     val viewModel: DayViewViewModel = viewModel(factory = DayViewViewModelFactory(context))
 
@@ -89,31 +89,9 @@ fun DayViewScreen(onNavigateCycle: () -> Unit, onNavigateTo: (Screen) -> Unit) {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // 预告逻辑（标题用）
-    val timeSlotsForPreview = timeTableData.timeSlots
-    val todayHasCoursePreview = timeSlotsForPreview.indices.any { viewModel.cellForWeek(currentDayIndex, it) != null }
-    val lastSlotWithCoursePreview = timeSlotsForPreview.indices.filter { viewModel.cellForWeek(currentDayIndex, it) != null }.lastOrNull()
-    val alreadyFinishedTodayPreview = lastSlotWithCoursePreview?.let { java.time.LocalTime.now().isAfter(endTimeOf(timeSlotsForPreview[it])) } ?: false
-    val showTomorrowPreviewHeader = viewModel.isAtToday() && (!todayHasCoursePreview || alreadyFinishedTodayPreview)
-    val termWeeksHeader = timeTableData.terms.find { it.name == selectedTerm }?.weeks ?: currentWeek
-    val displayDayIndexHeader = if (showTomorrowPreviewHeader) (currentDayIndex + 1) % 7 else currentDayIndex
-    val displayWeekHeader = if (showTomorrowPreviewHeader && currentDayIndex == 6) (currentWeek + 1).coerceAtMost(termWeeksHeader) else currentWeek
 
-    val dayName = TimeTableData.weekDayNames.getOrNull(displayDayIndexHeader) ?: ""
-    val dayDate = if (showTomorrowPreviewHeader) {
-        val term = timeTableData.terms.find { it.name == selectedTerm }
-        val dfYMD = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd")
-        val dfMD = java.time.format.DateTimeFormatter.ofPattern("MM/dd")
-        if (term != null) {
-            val start = java.time.LocalDate.parse(term.startDate, dfYMD)
-            val date = start.plusWeeks((displayWeekHeader - 1).toLong()).plusDays(displayDayIndexHeader.toLong())
-            date.format(dfMD)
-        } else {
-            weekDates.getOrNull(displayDayIndexHeader) ?: ""
-        }
-    } else {
-        weekDates.getOrNull(currentDayIndex) ?: ""
-    }
+    val dayName = TimeTableData.weekDayNames.getOrNull(currentDayIndex) ?: ""
+    val dayDate = weekDates.getOrNull(currentDayIndex) ?: ""
 
     // Pager 状态（总天数 = 学期周数 * 7）
     val termWeeks = timeTableData.terms.find { it.name == selectedTerm }?.weeks ?: currentWeek
@@ -198,7 +176,7 @@ fun DayViewScreen(onNavigateCycle: () -> Unit, onNavigateTo: (Screen) -> Unit) {
                         Icon(imageVector = Icons.Filled.SwapHoriz, contentDescription = "切换页面")
                         DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
                             DropdownMenuItem(text = { Text("周视图") }, onClick = { onNavigateTo(Screen.WeekView); menuExpanded = false })
-                            DropdownMenuItem(text = { Text("设置") }, onClick = { onNavigateTo(Screen.Settings); menuExpanded = false })
+                            DropdownMenuItem(text = { Text("课视图") }, onClick = { onStartCourseView(); menuExpanded = false })
                             DropdownMenuItem(text = { Text("日视图") }, onClick = { onNavigateTo(Screen.DayView); menuExpanded = false })
                         }
                     }
@@ -221,24 +199,8 @@ fun DayViewScreen(onNavigateCycle: () -> Unit, onNavigateTo: (Screen) -> Unit) {
             val pageWeek = page / 7 + 1
             val pageDayIndex = page % 7
 
-            // 仅当该页是“今天”时应用明日预告逻辑
-            val dfYMD = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd")
-            val term = timeTableData.terms.find { it.name == selectedTerm }
-            val todayIndex = java.time.LocalDate.now().dayOfWeek.value.let { it - 1 }.coerceIn(0, 6)
-            val todayWeek = if (term != null) {
-                val start = java.time.LocalDate.parse(term.startDate, dfYMD)
-                val days = java.time.temporal.ChronoUnit.DAYS.between(start, java.time.LocalDate.now()).toInt()
-                val computed = if (days >= 0) (days / 7) + 1 else 1
-                computed.coerceIn(1, termWeeks)
-            } else pageWeek
-            val isPageToday = (pageDayIndex == todayIndex) && (pageWeek == todayWeek)
-
-            val todayHasCourse = timeSlots.indices.any { viewModel.cellForWeekIndex(pageDayIndex, it, pageWeek) != null }
-            val lastSlotWithCourse = timeSlots.indices.filter { viewModel.cellForWeekIndex(pageDayIndex, it, pageWeek) != null }.lastOrNull()
-            val alreadyFinishedToday = lastSlotWithCourse?.let { java.time.LocalTime.now().isAfter(endTimeOf(timeSlots[it])) } ?: false
-            val showTomorrowPreview = isPageToday && (!todayHasCourse || alreadyFinishedToday)
-            val displayDayIndex = if (showTomorrowPreview) (pageDayIndex + 1) % 7 else pageDayIndex
-            val displayWeek = if (showTomorrowPreview && pageDayIndex == 6) (pageWeek + 1).coerceAtMost(termWeeks) else pageWeek
+            val displayDayIndex = pageDayIndex
+            val displayWeek = pageWeek
 
             Column(
                 modifier = Modifier
@@ -253,23 +215,8 @@ fun DayViewScreen(onNavigateCycle: () -> Unit, onNavigateTo: (Screen) -> Unit) {
                         Text(text = "暂无时间段设置", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
-                    if (showTomorrowPreview) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 44.dp)
-                                .padding(bottom = 8.dp)
-                                .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(6.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "明日课程预告",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                modifier = Modifier.padding(vertical = 12.dp)
-                            )
-                        }
-                    }
+                    val displayDayIndex = pageDayIndex
+                    val displayWeek = pageWeek
 
                     timeSlots.forEachIndexed { slotIndex, slotLabel ->
                         val currentSegment = segmentOf(slotLabel)

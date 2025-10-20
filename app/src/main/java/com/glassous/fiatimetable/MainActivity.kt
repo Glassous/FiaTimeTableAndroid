@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.content.SharedPreferences
 import android.graphics.Color
 import android.os.Build
+import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -84,10 +85,15 @@ class MainActivity : ComponentActivity() {
                 windowInsetsController.isAppearanceLightStatusBars = !darkTheme
             }
 
-            val startRoute = if (startPref == "day") Screen.DayView.route else Screen.WeekView.route
+            val intentRoute = intent.getStringExtra("xf_start_route")
+            val startRouteDefault = when (startPref) {
+                "day" -> Screen.DayView.route
+                "course" -> Screen.CourseView.route
+                else -> Screen.WeekView.route
+            }
 
             FiaTimeTableTheme(darkTheme = darkTheme) {
-                MainScreen(startDestinationRoute = startRoute)
+                MainScreen(startDestinationRoute = intentRoute ?: startRouteDefault)
             }
         }
     }
@@ -133,24 +139,40 @@ fun MainScreen(startDestinationRoute: String) {
             startDestination = startDestinationRoute,
             modifier = Modifier.fillMaxSize()
         ) {
-            composable(Screen.DayView.route) {
-                DayViewScreen(
-                    onNavigateCycle = { navController.navigate(Screen.WeekView.route) },
-                    onNavigateTo = { screen -> navController.navigate(screen.route) }
-                )
-            }
+            // removed duplicate DayView route with intent-based navigation
             composable(Screen.WeekView.route) {
+                val ctx = LocalContext.current
+                val activity = LocalContext.current as? ComponentActivity
                 WeekViewScreen(
                     pureMode = pureMode,
                     onEnterPureMode = { pureMode = true },
                     onExitPureMode = { pureMode = false },
-                    onNavigateCycle = { navController.navigate(Screen.DayView.route) },
+                    onNavigateCycle = { navController.navigate(Screen.CourseView.route) },
+                    onStartCourseView = { navController.navigate(Screen.CourseView.route) },
+                    onNavigateTo = { screen -> navController.navigate(screen.route) }
+                )
+            }
+            composable(Screen.DayView.route) {
+                val ctx = LocalContext.current
+                val activity = LocalContext.current as? ComponentActivity
+                DayViewScreen(
+                    onNavigateCycle = { navController.navigate(Screen.WeekView.route) },
+                    onStartCourseView = { navController.navigate(Screen.CourseView.route) },
                     onNavigateTo = { screen -> navController.navigate(screen.route) }
                 )
             }
             composable(Screen.Settings.route) {
                 SettingsScreen(
                     onNavigateBack = { navController.popBackStack() },
+                    onNavigateTo = { screen -> navController.navigate(screen.route) }
+                )
+            }
+            composable(Screen.CourseView.route) {
+                val ctx = LocalContext.current
+                val repo = remember(ctx) { TimeTableRepository(ctx) }
+                CourseViewScreen(
+                    repository = repo,
+                    onNavigateCycle = { navController.navigate(Screen.DayView.route) },
                     onNavigateTo = { screen -> navController.navigate(screen.route) }
                 )
             }

@@ -222,8 +222,8 @@ fun SettingsScreen(onNavigateBack: () -> Unit, onNavigateTo: (Screen) -> Unit) {
                         Text(text = "启动页面", style = MaterialTheme.typography.titleMedium)
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        val startOptions = listOf("day", "week")
-                        val startLabels = listOf("日视图", "周视图")
+                        val startOptions = listOf("day", "week", "course")
+                        val startLabels = listOf("日视图", "周视图", "课视图")
                         var startSelectedIndex by remember(startPagePref) {
                             mutableStateOf(startOptions.indexOf(startPagePref).coerceIn(0, startOptions.size - 1))
                         }
@@ -243,7 +243,8 @@ fun SettingsScreen(onNavigateBack: () -> Unit, onNavigateTo: (Screen) -> Unit) {
                                 ) {
                                     val icon = when (opt) {
                                         "day" -> Icons.Filled.DateRange
-                                        else -> Icons.Filled.Home
+                                        "week" -> Icons.Filled.Home
+                                        else -> Icons.Filled.PhoneAndroid
                                     }
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),

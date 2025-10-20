@@ -86,6 +86,7 @@ fun WeekViewScreen(
     onEnterPureMode: () -> Unit,
     onExitPureMode: () -> Unit,
     onNavigateCycle: () -> Unit,
+    onStartCourseView: () -> Unit,
     onNavigateTo: (Screen) -> Unit
 ) {
     val context = LocalContext.current
@@ -210,7 +211,7 @@ fun WeekViewScreen(
                             Icon(imageVector = Icons.Filled.SwapHoriz, contentDescription = "切换页面")
                             DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
                                 DropdownMenuItem(text = { Text("周视图") }, onClick = { onNavigateTo(Screen.WeekView); menuExpanded = false })
-                                DropdownMenuItem(text = { Text("设置") }, onClick = { onNavigateTo(Screen.Settings); menuExpanded = false })
+                                DropdownMenuItem(text = { Text("课视图") }, onClick = { onStartCourseView(); menuExpanded = false })
                                 DropdownMenuItem(text = { Text("日视图") }, onClick = { onNavigateTo(Screen.DayView); menuExpanded = false })
                             }
                         }

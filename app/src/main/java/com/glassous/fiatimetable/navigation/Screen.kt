@@ -26,6 +26,12 @@ sealed class Screen(
         icon = Icons.Default.Home
     )
     
+    object CourseView : Screen(
+        route = "course_view",
+        title = "课程视图",
+        icon = Icons.Default.DateRange
+    )
+    
     object Settings : Screen(
         route = "settings",
         title = "设置",
