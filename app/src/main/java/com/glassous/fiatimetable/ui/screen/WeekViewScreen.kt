@@ -769,14 +769,14 @@ private fun HeaderWithSegment(weekDates: List<String>, showSaturday: Boolean, sh
             // 左侧时间列占位（移除“时间”文字）
             Box(
                 modifier = Modifier
-                    .width(40.dp)
+                    .width(36.dp)
                     .height(44.dp)
                     .background(
-                        Color.Transparent,
+                        MaterialTheme.colorScheme.surface,
                         RoundedCornerShape(4.dp)
                     )
             )
-            Spacer(modifier = Modifier.width(6.dp))
+            Spacer(modifier = Modifier.width(1.dp))
             // 星期列标题 - 根据设置显示周六/周日
             val dayIndices = buildList {
                 addAll(0..4)
