@@ -16,7 +16,6 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -47,9 +46,6 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TransformOrigin
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalDensity
 
 class CourseViewActivity : ComponentActivity() {
@@ -253,23 +249,6 @@ fun CourseViewScreen(
                 }
             },
             actions = {
-                // 回到当前课/下节课按钮
-                IconButton(onClick = {
-                    val now = LocalTime.now()
-                    val today = LocalDate.now()
-                    val currentIdx = courseCards.indexOfFirst { it.date == today && now >= it.start && now <= it.end }
-                    val targetIdx = if (currentIdx >= 0) currentIdx else {
-                        courseCards.indexOfFirst { it.date.isAfter(today) || (it.date == today && now < it.start) }
-                    }
-                    if (targetIdx >= 0) {
-                        CoroutineScope(Dispatchers.Main).launch {
-                            pagerState.animateScrollToPage(targetIdx)
-                        }
-                    }
-                }) {
-                    Icon(imageVector = Icons.Filled.MyLocation, contentDescription = "回到当前课/下节课")
-                }
-                
                 var menuExpanded by remember { mutableStateOf(false) }
                 Box(
                     modifier = Modifier
