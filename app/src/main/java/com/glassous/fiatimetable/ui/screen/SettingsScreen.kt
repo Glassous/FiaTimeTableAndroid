@@ -68,8 +68,9 @@ fun SettingsScreen(onNavigateBack: () -> Unit, onNavigateTo: (Screen) -> Unit) {
     val startPagePref by viewModel.startPage.collectAsState()
     // 新增：云端同步消息
     val syncMessage by viewModel.syncMessage.collectAsState()
-    // 新增：是否显示周末
-    val showWeekend by viewModel.showWeekend.collectAsState()
+    // 新增：是否显示周六/周日
+    val showSaturday by viewModel.showSaturday.collectAsState()
+    val showSunday by viewModel.showSunday.collectAsState()
     // 新增：是否显示午休/晚休
     val showBreaks by viewModel.showBreaks.collectAsState()
 
@@ -278,8 +279,17 @@ fun SettingsScreen(onNavigateBack: () -> Unit, onNavigateTo: (Screen) -> Unit) {
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("显示周末", style = MaterialTheme.typography.bodyLarge)
-                            Switch(checked = showWeekend, onCheckedChange = { viewModel.setShowWeekend(it) })
+                            Text("显示周六", style = MaterialTheme.typography.bodyLarge)
+                            Switch(checked = showSaturday, onCheckedChange = { viewModel.setShowSaturday(it) })
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("显示周日", style = MaterialTheme.typography.bodyLarge)
+                            Switch(checked = showSunday, onCheckedChange = { viewModel.setShowSunday(it) })
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(

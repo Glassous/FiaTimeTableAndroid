@@ -39,6 +39,12 @@ class WeekViewViewModel(private val repository: TimeTableRepository) : ViewModel
     private val _showWeekend = MutableStateFlow(true)
     val showWeekend: StateFlow<Boolean> = _showWeekend.asStateFlow()
 
+    // 新增：是否显示周六/周日
+    private val _showSaturday = MutableStateFlow(true)
+    val showSaturday: StateFlow<Boolean> = _showSaturday.asStateFlow()
+    private val _showSunday = MutableStateFlow(true)
+    val showSunday: StateFlow<Boolean> = _showSunday.asStateFlow()
+
     // 是否显示休息分隔线
     private val _showBreaks = MutableStateFlow(true)
     val showBreaks: StateFlow<Boolean> = _showBreaks.asStateFlow()
@@ -95,6 +101,9 @@ class WeekViewViewModel(private val repository: TimeTableRepository) : ViewModel
 
                 // 读取是否显示周末
                 _showWeekend.value = repository.getShowWeekend()
+                // 新增：读取是否显示周六/周日
+                _showSaturday.value = repository.getShowSaturday()
+                _showSunday.value = repository.getShowSunday()
                 // 读取是否显示休息分隔线
                 _showBreaks.value = repository.getShowBreaks()
             } catch (e: Exception) {
@@ -104,6 +113,9 @@ class WeekViewViewModel(private val repository: TimeTableRepository) : ViewModel
                 recomputeWeekAndDates()
                 // 读取是否显示周末
                 _showWeekend.value = repository.getShowWeekend()
+                // 新增：读取是否显示周六/周日
+                _showSaturday.value = repository.getShowSaturday()
+                _showSunday.value = repository.getShowSunday()
                 // 读取是否显示休息分隔线
                 _showBreaks.value = repository.getShowBreaks()
             }

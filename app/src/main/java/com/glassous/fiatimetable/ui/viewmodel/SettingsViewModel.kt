@@ -60,6 +60,12 @@ class SettingsViewModel(private val repository: TimeTableRepository) : ViewModel
     private val _showWeekend = MutableStateFlow(true)
     val showWeekend: StateFlow<Boolean> = _showWeekend.asStateFlow()
 
+    // 是否显示周末：true/false
+    private val _showSaturday = MutableStateFlow(true)
+    val showSaturday: StateFlow<Boolean> = _showSaturday.asStateFlow()
+    private val _showSunday = MutableStateFlow(true)
+    val showSunday: StateFlow<Boolean> = _showSunday.asStateFlow()
+
     // 是否显示休息分隔线：true/false
     private val _showBreaks = MutableStateFlow(true)
     val showBreaks: StateFlow<Boolean> = _showBreaks.asStateFlow()
@@ -98,8 +104,9 @@ class SettingsViewModel(private val repository: TimeTableRepository) : ViewModel
             _theme.value = repository.getTheme()
             // 加载启动页面偏好
             _startPage.value = repository.getStartPage()
-            // 加载是否显示周末
-            _showWeekend.value = repository.getShowWeekend()
+            // 加载是否显示周六/周日
+            _showSaturday.value = repository.getShowSaturday()
+            _showSunday.value = repository.getShowSunday()
             // 加载是否显示休息分隔线
             _showBreaks.value = repository.getShowBreaks()
         }
@@ -313,6 +320,20 @@ class SettingsViewModel(private val repository: TimeTableRepository) : ViewModel
         viewModelScope.launch {
             _showWeekend.value = show
             repository.saveShowWeekend(show)
+        }
+    }
+
+    fun setShowSaturday(show: Boolean) {
+        viewModelScope.launch {
+            _showSaturday.value = show
+            repository.saveShowSaturday(show)
+        }
+    }
+
+    fun setShowSunday(show: Boolean) {
+        viewModelScope.launch {
+            _showSunday.value = show
+            repository.saveShowSunday(show)
         }
     }
 

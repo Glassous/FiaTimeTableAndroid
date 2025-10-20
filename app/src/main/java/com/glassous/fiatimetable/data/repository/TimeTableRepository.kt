@@ -30,6 +30,9 @@ class TimeTableRepository(context: Context) {
         private const val KEY_START_PAGE = "xf_start_page"
         private const val KEY_SHOW_WEEKEND = "xf_show_weekend"
         private const val KEY_SHOW_BREAKS = "xf_show_breaks"
+        // 新增：独立周六/周日显示偏好键
+        private const val KEY_SHOW_SATURDAY = "xf_show_saturday"
+        private const val KEY_SHOW_SUNDAY = "xf_show_sunday"
         // 云端同步配置
         private const val KEY_OSS_ENDPOINT = "xf_oss_endpoint"
         private const val KEY_OSS_BUCKET = "xf_oss_bucket"
@@ -179,6 +182,32 @@ class TimeTableRepository(context: Context) {
 
     fun saveShowWeekend(show: Boolean) {
         sharedPreferences.edit().putBoolean(KEY_SHOW_WEEKEND, show).apply()
+    }
+
+    // 新增：是否显示周六/周日设置（向后兼容旧键）
+    fun getShowSaturday(): Boolean {
+        return if (sharedPreferences.contains(KEY_SHOW_SATURDAY)) {
+            sharedPreferences.getBoolean(KEY_SHOW_SATURDAY, true)
+        } else {
+            // 没有新键时以旧的“显示周末”作为默认
+            sharedPreferences.getBoolean(KEY_SHOW_WEEKEND, true)
+        }
+    }
+
+    fun saveShowSaturday(show: Boolean) {
+        sharedPreferences.edit().putBoolean(KEY_SHOW_SATURDAY, show).apply()
+    }
+
+    fun getShowSunday(): Boolean {
+        return if (sharedPreferences.contains(KEY_SHOW_SUNDAY)) {
+            sharedPreferences.getBoolean(KEY_SHOW_SUNDAY, true)
+        } else {
+            sharedPreferences.getBoolean(KEY_SHOW_WEEKEND, true)
+        }
+    }
+
+    fun saveShowSunday(show: Boolean) {
+        sharedPreferences.edit().putBoolean(KEY_SHOW_SUNDAY, show).apply()
     }
 
     // 是否显示休息分隔线设置

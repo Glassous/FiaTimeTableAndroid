@@ -97,7 +97,8 @@ fun WeekViewScreen(
     val selectedTerm by viewModel.selectedTerm.collectAsState()
     val currentWeek by viewModel.currentWeek.collectAsState()
     val weekDates by viewModel.weekDates.collectAsState()
-    val showWeekend by viewModel.showWeekend.collectAsState()
+    val showSaturday by viewModel.showSaturday.collectAsState()
+    val showSunday by viewModel.showSunday.collectAsState()
     val showBreaks by viewModel.showBreaks.collectAsState()
     
     // 页面恢复时刷新，确保设置页更改生效
@@ -268,7 +269,8 @@ fun WeekViewScreen(
                         deletingOnlineCourse = course
                         showOnlineDeleteConfirm = true
                     },
-                    showWeekend = showWeekend,
+                    showSaturday = showSaturday,
+                    showSunday = showSunday,
                     showBreaks = showBreaks,
                     modifier = Modifier
                         .fillMaxSize()
@@ -477,7 +479,8 @@ private fun TimeTableGrid(
     onAddOnlineCourse: () -> Unit,
     onEditOnlineCourse: (OnlineCourse) -> Unit,
     onDeleteOnlineCourse: (OnlineCourse) -> Unit,
-    showWeekend: Boolean,
+    showSaturday: Boolean,
+    showSunday: Boolean,
     showBreaks: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -558,7 +561,7 @@ private fun TimeTableGrid(
     ) {
         // 表头 - 星期与左侧时间列（含日期）
         item {
-            HeaderWithSegment(weekDates = weekDates, showWeekend = showWeekend)
+            HeaderWithSegment(weekDates = weekDates, showSaturday = showSaturday, showSunday = showSunday)
         }
         // 取消中间空隙，避免割裂感
         item { Spacer(modifier = Modifier.height(4.dp)) }
@@ -629,8 +632,12 @@ private fun TimeTableGrid(
                     }
                     Spacer(modifier = Modifier.width(1.dp))
                     // 每日课程格子
-                    val days = if (showWeekend) TimeTableData.weekDayNames else TimeTableData.weekDayNames.take(5)
-                    days.forEachIndexed { dayIndex, _ ->
+                    val dayIndices = buildList {
+                        addAll(0..4)
+                        if (showSaturday) add(5)
+                        if (showSunday) add(6)
+                    }
+                    dayIndices.forEachIndexed { pos, dayIndex ->
                         val courseData = cellForWeek(dayIndex, timeSlotIndex)
                         val rawData = courses[dayIndex]?.get(timeSlotIndex)
                         val otherCourse = cellForOtherWeeksCourse(dayIndex, timeSlotIndex)
@@ -712,7 +719,7 @@ private fun TimeTableGrid(
                                 }
                             }
                         }
-                        if (dayIndex < days.size - 1) {
+                        if (pos < dayIndices.size - 1) {
                             Spacer(modifier = Modifier.width(1.dp))
                         }
                     }
@@ -752,7 +759,7 @@ private fun BreakHeader(label: String) {
 
 // 移除分段中文（上午/下午/晚上）显示，仅保留“时间”+星期+日期
 @Composable
-private fun HeaderWithSegment(weekDates: List<String>, showWeekend: Boolean) {
+private fun HeaderWithSegment(weekDates: List<String>, showSaturday: Boolean, showSunday: Boolean) {
     Column(
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -770,9 +777,14 @@ private fun HeaderWithSegment(weekDates: List<String>, showWeekend: Boolean) {
                     )
             )
             Spacer(modifier = Modifier.width(6.dp))
-            // 星期列标题 - 根据设置是否显示周末
-            val days = if (showWeekend) TimeTableData.weekDayNames else TimeTableData.weekDayNames.take(5)
-            days.forEachIndexed { dayIndex, dayName ->
+            // 星期列标题 - 根据设置显示周六/周日
+            val dayIndices = buildList {
+                addAll(0..4)
+                if (showSaturday) add(5)
+                if (showSunday) add(6)
+            }
+            dayIndices.forEachIndexed { pos, dayIndex ->
+                val dayName = TimeTableData.weekDayNames.getOrNull(dayIndex) ?: ""
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -800,7 +812,7 @@ private fun HeaderWithSegment(weekDates: List<String>, showWeekend: Boolean) {
                         }
                     }
                 }
-                if (dayIndex < days.size - 1) {
+                if (pos < dayIndices.size - 1) {
                     Spacer(modifier = Modifier.width(1.dp))
                 }
             }
