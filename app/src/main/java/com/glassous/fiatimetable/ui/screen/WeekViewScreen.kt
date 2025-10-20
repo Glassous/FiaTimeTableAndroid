@@ -542,7 +542,7 @@ private fun TimeTableGrid(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp)
+                        .padding(vertical = 1.dp)
                 ) {
                     // 时间段
                     Box(
@@ -586,7 +586,7 @@ private fun TimeTableGrid(
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(1.dp))
                     // 每日课程格子
                     val days = if (showWeekend) TimeTableData.weekDayNames else TimeTableData.weekDayNames.take(5)
                     days.forEachIndexed { dayIndex, _ ->
@@ -640,7 +640,7 @@ private fun TimeTableGrid(
                                                             MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
                                                         }
                                                     ),
-                                                contentAlignment = Alignment.Center
+                                                contentAlignment = Alignment.TopStart
                                             ) {
                                                 if (courseName.isNotEmpty()) {
                                                     Text(
@@ -648,9 +648,7 @@ private fun TimeTableGrid(
                                                         color = Color.White,
                                                         fontSize = 15.sp,
                                                         fontWeight = FontWeight.Bold,
-                                                        textAlign = TextAlign.Center,
-                                                        maxLines = 3,
-                                                        overflow = TextOverflow.Ellipsis,
+                                                        textAlign = TextAlign.Start,
                                                         lineHeight = 17.sp,
                                                         modifier = Modifier.padding(4.dp)
                                                     )
@@ -674,7 +672,7 @@ private fun TimeTableGrid(
                             }
                         }
                         if (dayIndex < days.size - 1) {
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(1.dp))
                         }
                     }
                 }
@@ -700,7 +698,7 @@ private fun BreakHeader(label: String) {
         modifier = Modifier
             .fillMaxWidth()
             .height(24.dp)
-            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(6.dp)),
+            .background(Color.Transparent, RoundedCornerShape(6.dp)),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -762,7 +760,7 @@ private fun HeaderWithSegment(weekDates: List<String>, showWeekend: Boolean) {
                     }
                 }
                 if (dayIndex < days.size - 1) {
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(1.dp))
                 }
             }
         }
@@ -1029,25 +1027,23 @@ private fun GrayCourseContent(course: Course, isMainCell: Boolean = true) {
     ) {
         Column(
             modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.Top,
+            horizontalAlignment = Alignment.Start
         ) {
             Text(
                 text = course.courseName,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.Medium,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
                 fontSize = 15.sp,
-                lineHeight = 17.sp
+                lineHeight = 17.sp,
+                textAlign = TextAlign.Start
             )
             if (course.room.isNotEmpty()) {
                 Text(
                     text = course.room,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
                     fontSize = 13.sp,
                     lineHeight = 15.sp
                 )
@@ -1057,8 +1053,6 @@ private fun GrayCourseContent(course: Course, isMainCell: Boolean = true) {
                     text = course.teacher,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
                     fontSize = 12.sp,
                     lineHeight = 14.sp
                 )
@@ -1093,17 +1087,16 @@ private fun CourseContent(course: Course, isMainCell: Boolean = true) {
     ) {
         Column(
             modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
+            verticalArrangement = Arrangement.Top,
+            horizontalAlignment = Alignment.Start
         ) {
             Text(
                 text = course.courseName,
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
                 fontSize = 16.sp,
-                lineHeight = 18.sp
+                lineHeight = 18.sp,
+                textAlign = TextAlign.Start
             )
 
             if (course.room.isNotEmpty()) {
@@ -1111,10 +1104,9 @@ private fun CourseContent(course: Course, isMainCell: Boolean = true) {
                     text = course.room,
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.White.copy(alpha = 0.9f),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
                     fontSize = 14.sp,
-                    lineHeight = 16.sp
+                    lineHeight = 16.sp,
+                    textAlign = TextAlign.Start
                 )
             }
 
@@ -1123,23 +1115,51 @@ private fun CourseContent(course: Course, isMainCell: Boolean = true) {
                     text = course.teacher,
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.White.copy(alpha = 0.8f),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
                     fontSize = 13.sp,
-                    lineHeight = 15.sp
+                    lineHeight = 15.sp,
+                    textAlign = TextAlign.Start
                 )
             }
 
             if (isMainCell && course.duration > 1) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "${course.duration}节",
+                    text = "${'$'}{course.duration}节",
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.White.copy(alpha = 0.7f),
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.Light
+                    fontWeight = FontWeight.Light,
+                    textAlign = TextAlign.Start
                 )
             }
         }
     }
+}
+// Continuation cell content alignment for week view
+@Composable
+private fun ContinuationCellWeek(colorHex: String, courseName: String) {
+Box(
+    modifier = Modifier
+        .fillMaxSize()
+        .background(
+            try {
+                Color(android.graphics.Color.parseColor(colorHex)).copy(alpha = 0.8f)
+            } catch (e: Exception) {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+            }
+        ),
+    contentAlignment = Alignment.TopStart
+) {
+    if (courseName.isNotEmpty()) {
+        Text(
+            text = courseName,
+            color = Color.White,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Start,
+            lineHeight = 17.sp,
+            modifier = Modifier.padding(4.dp)
+        )
+    }
+}
 }

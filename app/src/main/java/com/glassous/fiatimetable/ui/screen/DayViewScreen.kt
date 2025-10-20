@@ -255,7 +255,7 @@ private fun BreakHeader(label: String) {
         modifier = Modifier
             .fillMaxWidth()
             .height(24.dp)
-            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(6.dp)),
+            .background(Color.Transparent, RoundedCornerShape(6.dp)),
         contentAlignment = Alignment.Center
     ) {
         Text(
