@@ -88,7 +88,7 @@ fun WeekViewScreen(
     val weekDates by viewModel.weekDates.collectAsState()
     val showWeekend by viewModel.showWeekend.collectAsState()
     val showBreaks by viewModel.showBreaks.collectAsState()
-
+    
     // 页面恢复时刷新，确保设置页更改生效
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -108,7 +108,7 @@ fun WeekViewScreen(
     var editingDayIndex by remember { mutableStateOf(0) }
     var editingTimeSlotIndex by remember { mutableStateOf(0) }
     var editingCourse by remember { mutableStateOf<Course?>(null) }
-
+    
     // 网络选修课对话框状态
     var showOnlineCourseDialog by remember { mutableStateOf(false) }
     var editingOnlineCourse by remember { mutableStateOf<OnlineCourse?>(null) }
@@ -127,7 +127,7 @@ fun WeekViewScreen(
     var deletingCourse by remember { mutableStateOf<Course?>(null) }
     var deleteDayIndex by remember { mutableStateOf(0) }
     var deleteSlotIndex by remember { mutableStateOf(0) }
-
+    
     // 网络选修课删除确认状态
     var showOnlineDeleteConfirm by remember { mutableStateOf(false) }
     var deletingOnlineCourse by remember { mutableStateOf<OnlineCourse?>(null) }
@@ -200,11 +200,11 @@ fun WeekViewScreen(
                     }
                 )
             }
-
+    
             // 课程表网格：使用 HorizontalPager 实现左右滑动切换周
             val termWeeks = timeTableData.terms.find { it.name == selectedTerm }?.weeks ?: currentWeek
             val pagerState = rememberPagerState(initialPage = (currentWeek - 1).coerceAtLeast(0)) { termWeeks }
-
+    
             // 当外部周次变化（按钮/回到本周）时，同步 Pager
             LaunchedEffect(currentWeek, termWeeks) {
                 val target = (currentWeek - 1).coerceIn(0, termWeeks - 1)
@@ -219,7 +219,7 @@ fun WeekViewScreen(
                     viewModel.setWeek(targetWeek)
                 }
             }
-
+    
             HorizontalPager(
                 state = pagerState,
                 beyondViewportPageCount = 1,
@@ -540,18 +540,19 @@ private fun TimeTableGrid(
                     }
                 }
                 Row(
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
                 ) {
                     // 时间段
                     Box(
                         modifier = Modifier
-                            .width(40.dp)
-                            .height(120.dp)
+                            .width(36.dp)
+                            .height(140.dp)
                             .background(
                                 MaterialTheme.colorScheme.surface,
                                 RoundedCornerShape(4.dp)
-                            )
-                            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp)),
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         val normalizedSlot = timeSlot.replace("~", "-").replace("—", "-").replace("–", "-")
@@ -562,17 +563,19 @@ private fun TimeTableGrid(
                             verticalArrangement = Arrangement.Center
                         ) {
                             Text(
+                                text = "${timeSlotIndex + 1}",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 12.sp,
+                                textAlign = TextAlign.Center
+                            )
+                            Text(
                                 text = startText,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 fontSize = 10.sp,
                                 textAlign = TextAlign.Center
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .width(1.dp)
-                                    .height(14.dp)
-                                    .background(MaterialTheme.colorScheme.outline)
                             )
                             Text(
                                 text = endText,
@@ -583,7 +586,7 @@ private fun TimeTableGrid(
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.width(2.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     // 每日课程格子
                     val days = if (showWeekend) TimeTableData.weekDayNames else TimeTableData.weekDayNames.take(5)
                     days.forEachIndexed { dayIndex, _ ->
@@ -598,8 +601,9 @@ private fun TimeTableGrid(
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .height(120.dp)
+                                .height(140.dp)
                                 .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(4.dp))
+                                .clip(RoundedCornerShape(4.dp))
                                 .then(
                                     if (cellHasContent) Modifier.border(
                                         1.dp,
@@ -643,7 +647,7 @@ private fun TimeTableGrid(
                                                         text = courseName,
                                                         color = Color.White,
                                                         fontSize = 15.sp,
-                                                        fontWeight = FontWeight.Medium,
+                                                        fontWeight = FontWeight.Bold,
                                                         textAlign = TextAlign.Center,
                                                         maxLines = 3,
                                                         overflow = TextOverflow.Ellipsis,
@@ -668,6 +672,9 @@ private fun TimeTableGrid(
                                     }
                                 }
                             }
+                        }
+                        if (dayIndex < days.size - 1) {
+                            Spacer(modifier = Modifier.width(4.dp))
                         }
                     }
                 }
@@ -717,22 +724,22 @@ private fun HeaderWithSegment(weekDates: List<String>, showWeekend: Boolean) {
             Box(
                 modifier = Modifier
                     .width(40.dp)
-                    .height(56.dp)
+                    .height(44.dp)
                     .background(
                         Color.Transparent,
                         RoundedCornerShape(4.dp)
                     )
             )
-            Spacer(modifier = Modifier.width(2.dp))
+            Spacer(modifier = Modifier.width(6.dp))
             // 星期列标题 - 根据设置是否显示周末
             val days = if (showWeekend) TimeTableData.weekDayNames else TimeTableData.weekDayNames.take(5)
             days.forEachIndexed { dayIndex, dayName ->
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .height(56.dp)
+                        .height(44.dp)
                         .background(
-                            MaterialTheme.colorScheme.surfaceVariant,
+                            Color.Transparent,
                             RoundedCornerShape(4.dp)
                         ),
                     contentAlignment = Alignment.Center
@@ -749,334 +756,16 @@ private fun HeaderWithSegment(weekDates: List<String>, showWeekend: Boolean) {
                             Text(
                                 text = dateText,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 11.sp
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
                 }
                 if (dayIndex < days.size - 1) {
-                    Spacer(modifier = Modifier.width(2.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun EmptyCellPlus(onClick: () -> Unit) {
-    var showAddIcon by remember { mutableStateOf(false) }
-
-    LaunchedEffect(showAddIcon) {
-        if (showAddIcon) {
-            kotlinx.coroutines.delay(3000)
-            showAddIcon = false
-        }
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .clip(RoundedCornerShape(4.dp))
-            .clickable {
-                if (showAddIcon) {
-                    onClick()
-                } else {
-                    showAddIcon = true
-                }
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        if (showAddIcon) {
-            Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = "添加课程",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun CourseCell(
-    courses: Any?,
-    dayIndex: Int,
-    timeSlotIndex: Int,
-    onCellClick: (Int, Int) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var showAddIcon by remember { mutableStateOf(false) }
-    
-    Box(
-        modifier = modifier
-            .background(
-                MaterialTheme.colorScheme.surface,
-                RoundedCornerShape(4.dp)
-            )
-            .border(
-                1.dp,
-                MaterialTheme.colorScheme.outline,
-                RoundedCornerShape(4.dp)
-            )
-            .clip(RoundedCornerShape(4.dp))
-            .clickable {
-                when (courses) {
-                    null -> {
-                        // 空格子，如果已显示+号则进入编辑，否则显示+号
-                        if (showAddIcon) {
-                            onCellClick(dayIndex, timeSlotIndex)
-                        } else {
-                            showAddIcon = true
-                        }
-                    }
-                    is List<*> -> {
-                        // 有课程，直接进入编辑
-                        onCellClick(dayIndex, timeSlotIndex)
-                    }
-                    is Map<*, *> -> {
-                        // 延续标记，查找原始课程进行编辑
-                        // 向上查找原始课程的位置
-                        var originalSlot = timeSlotIndex - 1
-                        while (originalSlot >= 0) {
-                            // 这里需要从父组件传递完整的课程数据来查找原始课程
-                            // 暂时不处理点击，或者可以传递一个回调来处理
-                            break
-                        }
-                    }
-                }
-            }
-    ) {
-        when (courses) {
-            is List<*> -> {
-                // 处理课程列表
-                val courseList = courses.filterIsInstance<Course>()
-                if (courseList.isNotEmpty()) {
-                    val course = courseList.first() // 暂时只显示第一个课程
-                    CourseContent(course = course, isMainCell = true)
-                }
-            }
-            is Map<*, *> -> {
-                // 处理延续标记
-                if (courses["continued"] == true) {
-                    val courseColor = courses["color"] as? String ?: "#2196F3"
-                    val courseName = courses["courseName"] as? String ?: ""
-                    // 延续标记不显示边框，创造连续卡片的视觉效果
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                try {
-                                    Color(android.graphics.Color.parseColor(courseColor)).copy(alpha = 0.8f)
-                                } catch (e: Exception) {
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-                                }
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        // 显示课程名称而不是"..."
-                        if (courseName.isNotEmpty()) {
-                            Text(
-                                text = courseName,
-                                color = Color.White,
-                                fontSize = 15.sp, // 继续增大延续标记的字体大小从13sp到15sp
-                                fontWeight = FontWeight.Medium,
-                                textAlign = TextAlign.Center,
-                                maxLines = 3, // 增加最大行数从2到3，允许更多换行
-                                overflow = TextOverflow.Ellipsis,
-                                lineHeight = 17.sp, // 添加行高设置
-                                modifier = Modifier.padding(4.dp)
-                            )
-                        }
-                    }
-                }
-            }
-            else -> {
-                if (showAddIcon) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "添加课程",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CourseContent(course: Course, isMainCell: Boolean = true) {
-    val backgroundColor = try {
-        Color(android.graphics.Color.parseColor(course.color))
-    } catch (e: Exception) {
-        MaterialTheme.colorScheme.primary
-    }
-    
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(backgroundColor.copy(alpha = 0.8f))
-            // 移除圆角和边框，创造连续卡片效果
-            .padding(4.dp)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = course.courseName,
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                maxLines = 3, // 增加最大行数从2到3，允许更多换行
-                overflow = TextOverflow.Ellipsis,
-                fontSize = 16.sp, // 继续增大字体从14sp到16sp
-                lineHeight = 18.sp // 添加行高设置
-            )
-            
-            if (course.room.isNotEmpty()) {
-                Text(
-                    text = course.room,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.9f),
-                    maxLines = 2, // 增加最大行数从1到2，允许换行
-                    overflow = TextOverflow.Ellipsis,
-                    fontSize = 14.sp, // 继续增大字体从12sp到14sp
-                    lineHeight = 16.sp // 添加行高设置
-                )
-            }
-            
-            if (course.teacher.isNotEmpty()) {
-                Text(
-                    text = course.teacher,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.8f),
-                    maxLines = 2, // 增加最大行数从1到2，允许换行
-                    overflow = TextOverflow.Ellipsis,
-                    fontSize = 13.sp, // 继续增大字体从11sp到13sp
-                    lineHeight = 15.sp // 添加行高设置
-                )
-            }
-            
-            // 如果是多节课程，在主格子显示节数信息
-            if (isMainCell && course.duration > 1) {
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "${course.duration}节",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 12.sp, // 继续增大字体从10sp到12sp
-                    fontWeight = FontWeight.Light
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun EmptyCellContent(onClick: () -> Unit) {
-    IconButton(onClick = onClick) {
-        Icon(
-            imageVector = Icons.Default.Add,
-            contentDescription = "添加课程",
-            tint = MaterialTheme.colorScheme.primary
-        )
-    }
-}
-
-@Composable
-private fun ContinuationCell(colorHex: String) {
-    val bg = try {
-        Color(android.graphics.Color.parseColor(colorHex)).copy(alpha = 0.8f)
-    } catch (_: Exception) {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-    }
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(bg),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = "…",
-            color = Color.White,
-            style = MaterialTheme.typography.labelLarge
-        )
-    }
-}
-
-@Composable
-private fun GrayCourseContent(course: Course, isMainCell: Boolean = true) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-            .padding(4.dp)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = course.courseName,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.Medium,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-                fontSize = 15.sp,
-                lineHeight = 17.sp
-            )
-            if (course.room.isNotEmpty()) {
-                Text(
-                    text = course.room,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    fontSize = 13.sp,
-                    lineHeight = 15.sp
-                )
-            }
-            if (course.teacher.isNotEmpty()) {
-                Text(
-                    text = course.teacher,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    fontSize = 12.sp,
-                    lineHeight = 14.sp
-                )
-            }
-            if (isMainCell && course.duration > 1) {
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "${'$'}{course.duration}节",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Light
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun GrayContinuationCell() {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = "…",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.labelLarge
-        )
     }
 }
 
@@ -1274,6 +963,182 @@ private fun OnlineCoursesSection(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyCellPlus(onClick: () -> Unit) {
+    var showAddIcon by remember { mutableStateOf(false) }
+
+    LaunchedEffect(showAddIcon) {
+        if (showAddIcon) {
+            kotlinx.coroutines.delay(3000)
+            showAddIcon = false
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .clip(RoundedCornerShape(4.dp))
+            .clickable {
+                if (showAddIcon) {
+                    onClick()
+                } else {
+                    showAddIcon = true
+                }
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        if (showAddIcon) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = "添加课程",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun GrayContinuationCell() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "…",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.labelLarge
+        )
+    }
+}
+
+@Composable
+private fun GrayCourseContent(course: Course, isMainCell: Boolean = true) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+            .padding(4.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = course.courseName,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                fontSize = 15.sp,
+                lineHeight = 17.sp
+            )
+            if (course.room.isNotEmpty()) {
+                Text(
+                    text = course.room,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    fontSize = 13.sp,
+                    lineHeight = 15.sp
+                )
+            }
+            if (course.teacher.isNotEmpty()) {
+                Text(
+                    text = course.teacher,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    fontSize = 12.sp,
+                    lineHeight = 14.sp
+                )
+            }
+            if (isMainCell && course.duration > 1) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "${course.duration}节",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Light
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CourseContent(course: Course, isMainCell: Boolean = true) {
+    val backgroundColor = try {
+        Color(android.graphics.Color.parseColor(course.color))
+    } catch (e: Exception) {
+        MaterialTheme.colorScheme.primary
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(backgroundColor.copy(alpha = 0.8f))
+            .padding(4.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = course.courseName,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                fontSize = 16.sp,
+                lineHeight = 18.sp
+            )
+
+            if (course.room.isNotEmpty()) {
+                Text(
+                    text = course.room,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.9f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    fontSize = 14.sp,
+                    lineHeight = 16.sp
+                )
+            }
+
+            if (course.teacher.isNotEmpty()) {
+                Text(
+                    text = course.teacher,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.8f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    fontSize = 13.sp,
+                    lineHeight = 15.sp
+                )
+            }
+
+            if (isMainCell && course.duration > 1) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "${course.duration}节",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Light
+                )
             }
         }
     }
