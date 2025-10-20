@@ -71,6 +71,8 @@ fun SettingsScreen(onNavigateBack: () -> Unit, onNavigateTo: (Screen) -> Unit) {
     // 新增：是否显示周六/周日
     val showSaturday by viewModel.showSaturday.collectAsState()
     val showSunday by viewModel.showSunday.collectAsState()
+    // 新增：是否显示“再下节课”小卡片
+    val showNextCourseCard by viewModel.showNextCourseCard.collectAsState()
     // 新增：是否显示午休/晚休
     val showBreaks by viewModel.showBreaks.collectAsState()
 
@@ -301,9 +303,19 @@ fun SettingsScreen(onNavigateBack: () -> Unit, onNavigateTo: (Screen) -> Unit) {
                             Text("显示午休/晚休", style = MaterialTheme.typography.bodyLarge)
                             Switch(checked = showBreaks, onCheckedChange = { viewModel.setShowBreaks(it) })
                         }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        // 新增：课视图再下节课小卡片显示开关
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("显示再下节课小卡片", style = MaterialTheme.typography.bodyLarge)
+                            Switch(checked = showNextCourseCard, onCheckedChange = { viewModel.setShowNextCourseCard(it) })
+                        }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "关闭时隐藏午休/晚休分隔行与标题",
+                            text = "控制课视图底部的下一课预览小卡片",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

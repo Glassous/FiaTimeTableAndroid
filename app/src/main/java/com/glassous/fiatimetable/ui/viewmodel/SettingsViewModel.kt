@@ -70,6 +70,10 @@ class SettingsViewModel(private val repository: TimeTableRepository) : ViewModel
     private val _showBreaks = MutableStateFlow(true)
     val showBreaks: StateFlow<Boolean> = _showBreaks.asStateFlow()
 
+    // 新增：是否显示“再下节课”小卡片
+    private val _showNextCourseCard = MutableStateFlow(true)
+    val showNextCourseCard: StateFlow<Boolean> = _showNextCourseCard.asStateFlow()
+
     init {
         viewModelScope.launch {
             loadData()
@@ -109,6 +113,8 @@ class SettingsViewModel(private val repository: TimeTableRepository) : ViewModel
             _showSunday.value = repository.getShowSunday()
             // 加载是否显示休息分隔线
             _showBreaks.value = repository.getShowBreaks()
+            // 加载是否显示“再下节课”小卡片
+            _showNextCourseCard.value = repository.getShowNextCourseCard()
         }
     }
 
@@ -341,6 +347,14 @@ class SettingsViewModel(private val repository: TimeTableRepository) : ViewModel
         viewModelScope.launch {
             _showBreaks.value = show
             repository.saveShowBreaks(show)
+        }
+    }
+
+    // 新增：设置是否显示“再下节课”小卡片
+    fun setShowNextCourseCard(show: Boolean) {
+        viewModelScope.launch {
+            _showNextCourseCard.value = show
+            repository.saveShowNextCourseCard(show)
         }
     }
 }

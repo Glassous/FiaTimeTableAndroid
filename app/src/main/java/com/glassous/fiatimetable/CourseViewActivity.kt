@@ -47,6 +47,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.ui.graphics.luminance
+import android.content.SharedPreferences
 
 class CourseViewActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -106,6 +110,7 @@ class CourseViewActivity : ComponentActivity() {
                     }
                 )
             }
+
         }
     }
 }
@@ -145,6 +150,16 @@ fun CourseViewScreen(
     }
     BackHandler(enabled = true) {
         activity?.moveTaskToBack(true)
+    }
+
+    // 新增：读取设置中 mini 卡片显示开关并监听变更
+    var showMiniCard by remember { mutableStateOf(repository.getShowNextCourseCard()) }
+    DisposableEffect(Unit) {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+            showMiniCard = repository.getShowNextCourseCard()
+        }
+        repository.registerOnThemeChangedListener(listener)
+        onDispose { repository.unregisterOnThemeChangedListener(listener) }
     }
 
     // 跨天构造课程卡片列表（从今天起直到本学期结束），并标记“当前/下一节课”
@@ -294,18 +309,27 @@ fun CourseViewScreen(
 
                 if (page < courseCards.size) {
                     val item = courseCards[page]
-                    CourseBigCard(
-                        item = item,
-                        modifier = Modifier
-                            .graphicsLayer {
-                                this.translationY = translationY
-                                this.scaleX = scale
-                                this.scaleY = scale
-                                this.rotationX = rotationXDeg
-                                this.transformOrigin = TransformOrigin(0.5f, 0.5f)
-                                this.shadowElevation = 0f
-                            }
-                    )
+                    val nextItems = if (page + 1 < courseCards.size) courseCards.drop(page + 1) else emptyList()
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        CourseBigCard(
+                            item = item,
+                            modifier = Modifier
+                                .matchParentSize()
+                                .graphicsLayer {
+                                    this.translationY = translationY
+                                    this.scaleX = scale
+                                    this.scaleY = scale
+                                    this.rotationX = rotationXDeg
+                                    this.transformOrigin = TransformOrigin(0.5f, 0.5f)
+                                    this.shadowElevation = 0f
+                                }
+                        )
+                        if (nextItems.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(0.dp))
+                        } else {
+                            Spacer(modifier = Modifier.height(0.dp))
+                        }
+                    }
                 } else {
                     EndOfTermCard(
                         modifier = Modifier.graphicsLayer {
@@ -314,6 +338,23 @@ fun CourseViewScreen(
                             this.scaleY = 0.98f
                             this.shadowElevation = 0f
                         }
+                    )
+                }
+            }
+            val nextItemsOverlay = if (pagerState.currentPage + 1 < courseCards.size) courseCards.drop(pagerState.currentPage + 1) else emptyList()
+            if (showMiniCard) {
+                if (nextItemsOverlay.isNotEmpty()) {
+                    NextCourseMiniCard(
+                        items = nextItemsOverlay,
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(start = 32.dp, bottom = 16.dp)
+                    )
+                } else {
+                    NextCourseMiniCardEmpty(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(start = 32.dp, bottom = 16.dp)
                     )
                 }
             }
@@ -522,4 +563,104 @@ private fun endTimeOf(slot: String): LocalTime {
 
 private fun formatTime(time: LocalTime): String {
     return "%02d:%02d".format(time.hour, time.minute)
+}
+
+@Composable
+private fun NextCourseMiniCard(
+    items: List<CourseCardItem>,
+    modifier: Modifier = Modifier
+) {
+    val miniState = rememberPagerState(initialPage = 0) { items.size.coerceAtLeast(1) }
+    val currentItem = items.getOrNull(miniState.currentPage)
+
+    val targetBg = try {
+        val c = currentItem?.course?.color ?: "#888888"
+        ComposeColor(android.graphics.Color.parseColor(c))
+    } catch (_: Exception) {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    val bg by animateColorAsState(
+        targetValue = targetBg.copy(alpha = 0.9f),
+        animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
+        label = "mini_bg"
+    )
+    val targetText = if (targetBg.luminance() < 0.4f) ComposeColor.White else MaterialTheme.colorScheme.onSurface
+    val textColor by animateColorAsState(
+        targetValue = targetText,
+        animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
+        label = "mini_text"
+    )
+
+    Card(
+        modifier = modifier
+            .width(280.dp)
+            .height(96.dp)
+            .clip(MaterialTheme.shapes.small),
+        colors = CardDefaults.cardColors(containerColor = bg),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        HorizontalPager(
+            state = miniState,
+            pageSpacing = 0.dp,
+            beyondViewportPageCount = 1,
+            flingBehavior = PagerDefaults.flingBehavior(state = miniState),
+            modifier = Modifier.fillMaxSize()
+        ) { page ->
+            val it = items[page]
+            Row(
+                modifier = Modifier.fillMaxSize().padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = it.course.courseName,
+                        color = textColor,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    val roomInfo = if (it.course.room.isNotEmpty()) it.course.room else "未安排教室"
+                    Text(
+                        text = "${formatTime(it.start)} - ${formatTime(it.end)} · ${roomInfo}",
+                        color = textColor.copy(alpha = 0.9f),
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (it.course.teacher.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = it.course.teacher,
+                            color = textColor.copy(alpha = 0.85f),
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NextCourseMiniCardEmpty(modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier
+            .width(260.dp)
+            .height(84.dp)
+            .clip(MaterialTheme.shapes.small),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(
+                text = "后面没课了",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+    }
 }

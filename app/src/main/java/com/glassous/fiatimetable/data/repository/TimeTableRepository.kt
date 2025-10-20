@@ -33,6 +33,8 @@ class TimeTableRepository(context: Context) {
         // 新增：独立周六/周日显示偏好键
         private const val KEY_SHOW_SATURDAY = "xf_show_saturday"
         private const val KEY_SHOW_SUNDAY = "xf_show_sunday"
+        // 新增：课视图再下节课小卡片显示偏好键
+        private const val KEY_SHOW_NEXT_COURSE_CARD = "xf_show_next_course_card"
         // 云端同步配置
         private const val KEY_OSS_ENDPOINT = "xf_oss_endpoint"
         private const val KEY_OSS_BUCKET = "xf_oss_bucket"
@@ -217,6 +219,15 @@ class TimeTableRepository(context: Context) {
 
     fun saveShowBreaks(show: Boolean) {
         sharedPreferences.edit().putBoolean(KEY_SHOW_BREAKS, show).apply()
+    }
+
+    // 新增：是否显示“再下节课”小卡片
+    fun getShowNextCourseCard(): Boolean {
+        return sharedPreferences.getBoolean(KEY_SHOW_NEXT_COURSE_CARD, true)
+    }
+
+    fun saveShowNextCourseCard(show: Boolean) {
+        sharedPreferences.edit().putBoolean(KEY_SHOW_NEXT_COURSE_CARD, show).apply()
     }
 
     // 监听主题变更（供 Compose 层注册/注销）
