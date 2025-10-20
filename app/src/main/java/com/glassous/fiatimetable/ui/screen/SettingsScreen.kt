@@ -42,10 +42,13 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.foundation.combinedClickable
+import com.glassous.fiatimetable.navigation.Screen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(onNavigateCycle: () -> Unit, onNavigateTo: (Screen) -> Unit) {
     val context = LocalContext.current
     val viewModel: SettingsViewModel = viewModel(factory = SettingsViewModelFactory(context))
 
@@ -115,7 +118,23 @@ fun SettingsScreen() {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("设置") }
+                title = { Text("设置") },
+                actions = {
+                    var menuExpanded by remember { mutableStateOf(false) }
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .combinedClickable(onClick = onNavigateCycle, onLongClick = { menuExpanded = true }),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(imageVector = Icons.Filled.SwapHoriz, contentDescription = "切换页面")
+                        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                            DropdownMenuItem(text = { Text("周视图") }, onClick = { onNavigateTo(Screen.WeekView); menuExpanded = false })
+                            DropdownMenuItem(text = { Text("设置") }, onClick = { onNavigateTo(Screen.Settings); menuExpanded = false })
+                            DropdownMenuItem(text = { Text("日视图") }, onClick = { onNavigateTo(Screen.DayView); menuExpanded = false })
+                        }
+                    }
+                }
             )
         }
     ) {

@@ -2,6 +2,7 @@ package com.glassous.fiatimetable.ui.screen
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -9,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,6 +37,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
+import com.glassous.fiatimetable.navigation.Screen
 
 private fun segmentOf(slot: String): String {
     val parts = slot.split(":")
@@ -56,7 +59,7 @@ private fun endTimeOf(slot: String): java.time.LocalTime {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun DayViewScreen() {
+fun DayViewScreen(onNavigateCycle: () -> Unit, onNavigateTo: (Screen) -> Unit) {
     val context = LocalContext.current
     val viewModel: DayViewViewModel = viewModel(factory = DayViewViewModelFactory(context))
 
@@ -156,6 +159,20 @@ fun DayViewScreen() {
                     }
                     IconButton(onClick = { viewModel.nextDay() }) {
                         Icon(imageVector = Icons.Filled.ChevronRight, contentDescription = "下一天")
+                    }
+                    var menuExpanded by remember { mutableStateOf(false) }
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .combinedClickable(onClick = onNavigateCycle, onLongClick = { menuExpanded = true }),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(imageVector = Icons.Filled.SwapHoriz, contentDescription = "切换页面")
+                        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                            DropdownMenuItem(text = { Text("周视图") }, onClick = { onNavigateTo(Screen.WeekView); menuExpanded = false })
+                            DropdownMenuItem(text = { Text("设置") }, onClick = { onNavigateTo(Screen.Settings); menuExpanded = false })
+                            DropdownMenuItem(text = { Text("日视图") }, onClick = { onNavigateTo(Screen.DayView); menuExpanded = false })
+                        }
                     }
                 }
             )

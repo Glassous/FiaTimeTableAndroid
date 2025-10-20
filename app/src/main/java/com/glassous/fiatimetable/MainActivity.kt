@@ -120,16 +120,7 @@ fun MainScreen(startDestinationRoute: String) {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
-            AnimatedVisibility(
-                visible = !pureMode,
-                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
-            ) {
-                BottomNavigationBar(
-                    navController = navController,
-                    screens = screens
-                )
-            }
+            // TabBar removed; top bar handles navigation
         }
     ) { innerPadding ->
         NavHost(
@@ -138,17 +129,25 @@ fun MainScreen(startDestinationRoute: String) {
             modifier = Modifier.fillMaxSize()
         ) {
             composable(Screen.DayView.route) {
-                DayViewScreen()
+                DayViewScreen(
+                    onNavigateCycle = { navController.navigate(Screen.WeekView.route) },
+                    onNavigateTo = { screen -> navController.navigate(screen.route) }
+                )
             }
             composable(Screen.WeekView.route) {
                 WeekViewScreen(
                     pureMode = pureMode,
                     onEnterPureMode = { pureMode = true },
-                    onExitPureMode = { pureMode = false }
+                    onExitPureMode = { pureMode = false },
+                    onNavigateCycle = { navController.navigate(Screen.Settings.route) },
+                    onNavigateTo = { screen -> navController.navigate(screen.route) }
                 )
             }
             composable(Screen.Settings.route) {
-                SettingsScreen()
+                SettingsScreen(
+                    onNavigateCycle = { navController.navigate(Screen.DayView.route) },
+                    onNavigateTo = { screen -> navController.navigate(screen.route) }
+                )
             }
         }
     }

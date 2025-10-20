@@ -58,6 +58,9 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.foundation.combinedClickable
+import com.glassous.fiatimetable.navigation.Screen
 
 private fun segmentOf(slot: String): String {
     val normalized = slot.replace("~", "-").replace("—", "-").replace("–", "-")
@@ -75,7 +78,9 @@ private fun segmentOf(slot: String): String {
 fun WeekViewScreen(
     pureMode: Boolean,
     onEnterPureMode: () -> Unit,
-    onExitPureMode: () -> Unit
+    onExitPureMode: () -> Unit,
+    onNavigateCycle: () -> Unit,
+    onNavigateTo: (Screen) -> Unit
 ) {
     val context = LocalContext.current
     val viewModel: WeekViewViewModel = viewModel(
@@ -157,7 +162,7 @@ fun WeekViewScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             // 顶部栏：周次显示与切换（纯净模式隐藏，带动画）
             AnimatedVisibility(
-                visible = !pureMode,
+                visible = true,
                 enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing)),
                 exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing))
             ) {
@@ -188,15 +193,21 @@ fun WeekViewScreen(
                                 Icon(Icons.Default.Refresh, contentDescription = "回到本周")
                             }
                         }
-                        IconButton(onClick = { onEnterPureMode() }) {
-                            Icon(Icons.Default.VisibilityOff, contentDescription = "纯净模式")
+                        var menuExpanded by remember { mutableStateOf(false) }
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .combinedClickable(onClick = onNavigateCycle, onLongClick = { menuExpanded = true }),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(imageVector = Icons.Filled.SwapHoriz, contentDescription = "切换页面")
+                            DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                                DropdownMenuItem(text = { Text("周视图") }, onClick = { onNavigateTo(Screen.WeekView); menuExpanded = false })
+                                DropdownMenuItem(text = { Text("设置") }, onClick = { onNavigateTo(Screen.Settings); menuExpanded = false })
+                                DropdownMenuItem(text = { Text("日视图") }, onClick = { onNavigateTo(Screen.DayView); menuExpanded = false })
+                            }
                         }
-                        IconButton(onClick = { viewModel.prevWeek() }) {
-                            Icon(Icons.Default.ChevronLeft, contentDescription = "上一周")
-                        }
-                        IconButton(onClick = { viewModel.nextWeek() }) {
-                            Icon(Icons.Default.ChevronRight, contentDescription = "下一周")
-                        }
+
                     }
                 )
             }
