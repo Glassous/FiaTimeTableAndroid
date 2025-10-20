@@ -59,8 +59,14 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.foundation.combinedClickable
 import com.glassous.fiatimetable.navigation.Screen
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.compose.foundation.isSystemInDarkTheme
 
 private fun segmentOf(slot: String): String {
     val normalized = slot.replace("~", "-").replace("—", "-").replace("–", "-")
@@ -206,6 +212,9 @@ fun WeekViewScreen(
                                 DropdownMenuItem(text = { Text("设置") }, onClick = { onNavigateTo(Screen.Settings); menuExpanded = false })
                                 DropdownMenuItem(text = { Text("日视图") }, onClick = { onNavigateTo(Screen.DayView); menuExpanded = false })
                             }
+                        }
+                        IconButton(onClick = { onNavigateTo(Screen.Settings) }) {
+                            Icon(imageVector = Icons.Filled.Settings, contentDescription = "设置")
                         }
 
                     }
@@ -518,13 +527,34 @@ private fun TimeTableGrid(
         }
     }
 
+    val activity = (LocalContext.current as? ComponentActivity)
+    val isDarkTheme = isSystemInDarkTheme()
+    DisposableEffect(isDarkTheme) {
+        val win = activity?.window
+        val view = win?.decorView
+        if (win != null && view != null) {
+            WindowCompat.setDecorFitsSystemWindows(win, false)
+            win.navigationBarColor = android.graphics.Color.TRANSPARENT
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                win.isNavigationBarContrastEnforced = false
+            }
+            val controller = WindowInsetsControllerCompat(win, view)
+            controller.isAppearanceLightNavigationBars = !isDarkTheme
+        }
+        onDispose { }
+    }
+    BackHandler(enabled = true) {
+        activity?.moveTaskToBack(true)
+    }
+
     // 计算是否需要显示“晚休”（仅当本周晚上存在课程时）
     val eveningStartIndex = timeSlots.indexOfFirst { segmentOf(it) == "evening" }
     val hasEveningSlots = eveningStartIndex != -1
 
     LazyColumn(
         modifier = modifier,
-        contentPadding = PaddingValues(bottom = 128.dp)
+        // 恢复导航栏 Insets 避让，避免底部内容被遮挡
+        contentPadding = WindowInsets.navigationBars.asPaddingValues()
     ) {
         // 表头 - 星期与左侧时间列（含日期）
         item {

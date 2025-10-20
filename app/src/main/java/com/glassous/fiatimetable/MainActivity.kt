@@ -41,10 +41,15 @@ class MainActivity : ComponentActivity() {
         // 设置系统窗口为透明，实现沉浸式效果
         WindowCompat.setDecorFitsSystemWindows(window, false)
         
-        // 设置导航栏为完全透明
+        // 设置系统栏为完全透明（状态栏 + 导航栏）
+        window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            // 移除导航栏分割线（部分品牌会显示一条细线）
+            window.navigationBarDividerColor = Color.TRANSPARENT
+        }
         
-        // 对于Android 10及以上版本，禁用导航栏对比度强制
+        // 对于Android 10及以上版本，禁用导航栏对比度强制（避免底部半透明遮罩）
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isNavigationBarContrastEnforced = false
         }
@@ -139,13 +144,13 @@ fun MainScreen(startDestinationRoute: String) {
                     pureMode = pureMode,
                     onEnterPureMode = { pureMode = true },
                     onExitPureMode = { pureMode = false },
-                    onNavigateCycle = { navController.navigate(Screen.Settings.route) },
+                    onNavigateCycle = { navController.navigate(Screen.DayView.route) },
                     onNavigateTo = { screen -> navController.navigate(screen.route) }
                 )
             }
             composable(Screen.Settings.route) {
                 SettingsScreen(
-                    onNavigateCycle = { navController.navigate(Screen.DayView.route) },
+                    onNavigateBack = { navController.popBackStack() },
                     onNavigateTo = { screen -> navController.navigate(screen.route) }
                 )
             }

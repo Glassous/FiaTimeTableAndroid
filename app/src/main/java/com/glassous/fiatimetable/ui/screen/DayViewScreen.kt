@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,6 +39,12 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
 import com.glassous.fiatimetable.navigation.Screen
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.isSystemInDarkTheme
 
 private fun segmentOf(slot: String): String {
     val parts = slot.split(":")
@@ -131,7 +138,28 @@ fun DayViewScreen(onNavigateCycle: () -> Unit, onNavigateTo: (Screen) -> Unit) {
         }
     }
 
+    val activity = (LocalContext.current as? ComponentActivity)
+    val isDarkTheme = isSystemInDarkTheme()
+    DisposableEffect(isDarkTheme) {
+        val win = activity?.window
+        val view = win?.decorView
+        if (win != null && view != null) {
+            WindowCompat.setDecorFitsSystemWindows(win, false)
+            win.navigationBarColor = android.graphics.Color.TRANSPARENT
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                win.isNavigationBarContrastEnforced = false
+            }
+            val controller = WindowInsetsControllerCompat(win, view)
+            controller.isAppearanceLightNavigationBars = !isDarkTheme
+        }
+        onDispose { }
+    }
+    BackHandler(enabled = true) {
+        activity?.moveTaskToBack(true)
+    }
+    
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = {
@@ -174,6 +202,9 @@ fun DayViewScreen(onNavigateCycle: () -> Unit, onNavigateTo: (Screen) -> Unit) {
                             DropdownMenuItem(text = { Text("日视图") }, onClick = { onNavigateTo(Screen.DayView); menuExpanded = false })
                         }
                     }
+                    IconButton(onClick = { onNavigateTo(Screen.Settings) }) {
+                        Icon(imageVector = Icons.Filled.Settings, contentDescription = "设置")
+                    }
                 }
             )
         }
@@ -209,7 +240,14 @@ fun DayViewScreen(onNavigateCycle: () -> Unit, onNavigateTo: (Screen) -> Unit) {
             val displayDayIndex = if (showTomorrowPreview) (pageDayIndex + 1) % 7 else pageDayIndex
             val displayWeek = if (showTomorrowPreview && pageDayIndex == 6) (pageWeek + 1).coerceAtMost(termWeeks) else pageWeek
 
-            Column(modifier = Modifier.fillMaxSize().padding(padding).padding(12.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    // 恢复导航栏 Insets 避让，避免底部内容被遮挡
+                    .navigationBarsPadding()
+                    .padding(12.dp)
+            ) {
                 if (timeSlots.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(text = "暂无时间段设置", color = MaterialTheme.colorScheme.onSurfaceVariant)

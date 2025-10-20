@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -45,10 +46,14 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.foundation.combinedClickable
 import com.glassous.fiatimetable.navigation.Screen
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.activity.ComponentActivity
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onNavigateCycle: () -> Unit, onNavigateTo: (Screen) -> Unit) {
+fun SettingsScreen(onNavigateBack: () -> Unit, onNavigateTo: (Screen) -> Unit) {
     val context = LocalContext.current
     val viewModel: SettingsViewModel = viewModel(factory = SettingsViewModelFactory(context))
 
@@ -77,6 +82,23 @@ fun SettingsScreen(onNavigateCycle: () -> Unit, onNavigateTo: (Screen) -> Unit) 
 
     // 云端同步配置弹窗
     var showOssConfig by remember { mutableStateOf(false) }
+
+    val activity = (LocalContext.current as? ComponentActivity)
+    val isDarkTheme = isSystemInDarkTheme()
+    DisposableEffect(isDarkTheme) {
+        val win = activity?.window
+        val view = win?.decorView
+        if (win != null && view != null) {
+            WindowCompat.setDecorFitsSystemWindows(win, false)
+            win.navigationBarColor = android.graphics.Color.TRANSPARENT
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                win.isNavigationBarContrastEnforced = false
+            }
+            val controller = WindowInsetsControllerCompat(win, view)
+            controller.isAppearanceLightNavigationBars = !isDarkTheme
+        }
+        onDispose { }
+    }
 
     LaunchedEffect(terms, selectedTerm) {
         val current = terms.find { it.name == selectedTerm } ?: terms.firstOrNull()
@@ -116,23 +138,13 @@ fun SettingsScreen(onNavigateCycle: () -> Unit, onNavigateTo: (Screen) -> Unit) 
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = { Text("设置") },
-                actions = {
-                    var menuExpanded by remember { mutableStateOf(false) }
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .combinedClickable(onClick = onNavigateCycle, onLongClick = { menuExpanded = true }),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(imageVector = Icons.Filled.SwapHoriz, contentDescription = "切换页面")
-                        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                            DropdownMenuItem(text = { Text("周视图") }, onClick = { onNavigateTo(Screen.WeekView); menuExpanded = false })
-                            DropdownMenuItem(text = { Text("设置") }, onClick = { onNavigateTo(Screen.Settings); menuExpanded = false })
-                            DropdownMenuItem(text = { Text("日视图") }, onClick = { onNavigateTo(Screen.DayView); menuExpanded = false })
-                        }
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(imageVector = Icons.Filled.ChevronLeft, contentDescription = "返回")
                     }
                 }
             )
@@ -145,7 +157,8 @@ fun SettingsScreen(onNavigateCycle: () -> Unit, onNavigateTo: (Screen) -> Unit) 
                 .padding(padding)
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
-            contentPadding = PaddingValues(bottom = 120.dp)
+            // 恢复导航栏 Insets 避让，避免底部内容被遮挡
+            contentPadding = WindowInsets.navigationBars.asPaddingValues()
         ) {
             // 新增：界面主题设置
             item {
