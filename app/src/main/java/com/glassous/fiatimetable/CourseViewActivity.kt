@@ -16,8 +16,10 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,6 +49,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalDensity
+
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.ui.graphics.luminance
@@ -264,6 +267,10 @@ fun CourseViewScreen(
                 }
             },
             actions = {
+                val scope = rememberCoroutineScope()
+                IconButton(onClick = { scope.launch { pagerState.animateScrollToPage(initialIndex) } }) {
+                    Icon(imageVector = Icons.Filled.DateRange, contentDescription = "回到最初卡片")
+                }
                 var menuExpanded by remember { mutableStateOf(false) }
                 Box(
                     modifier = Modifier
@@ -324,10 +331,16 @@ fun CourseViewScreen(
                                     this.shadowElevation = 0f
                                 }
                         )
-                        if (nextItems.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(0.dp))
-                        } else {
-                            Spacer(modifier = Modifier.height(0.dp))
+                        if (showMiniCard) {
+                            val overlayModifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .graphicsLayer { this.translationY = -with(density) { 16.dp.toPx() } }
+                                .padding(start = 32.dp)
+                            if (nextItems.isNotEmpty()) {
+                                NextCourseMiniCard(items = nextItems, modifier = overlayModifier)
+                            } else {
+                                NextCourseMiniCardEmpty(modifier = overlayModifier)
+                            }
                         }
                     }
                 } else {
@@ -341,23 +354,7 @@ fun CourseViewScreen(
                     )
                 }
             }
-            val nextItemsOverlay = if (pagerState.currentPage + 1 < courseCards.size) courseCards.drop(pagerState.currentPage + 1) else emptyList()
-            if (showMiniCard) {
-                if (nextItemsOverlay.isNotEmpty()) {
-                    NextCourseMiniCard(
-                        items = nextItemsOverlay,
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(start = 32.dp, bottom = 16.dp)
-                    )
-                } else {
-                    NextCourseMiniCardEmpty(
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(start = 32.dp, bottom = 16.dp)
-                    )
-                }
-            }
+
         }
     }
 }

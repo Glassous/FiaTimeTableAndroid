@@ -160,12 +160,6 @@ fun DayViewScreen(onNavigateCycle: () -> Unit, onStartCourseView: () -> Unit, on
                     IconButton(onClick = { viewModel.backToToday() }, enabled = !viewModel.isAtToday()) {
                         Icon(imageVector = Icons.Filled.DateRange, contentDescription = "回到今天")
                     }
-                    IconButton(onClick = { viewModel.prevDay() }) {
-                        Icon(imageVector = Icons.Filled.ChevronLeft, contentDescription = "上一天")
-                    }
-                    IconButton(onClick = { viewModel.nextDay() }) {
-                        Icon(imageVector = Icons.Filled.ChevronRight, contentDescription = "下一天")
-                    }
                     var menuExpanded by remember { mutableStateOf(false) }
                     Box(
                         modifier = Modifier
@@ -256,7 +250,7 @@ private fun BreakHeader(label: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(24.dp)
+            .height(20.dp)
             .background(Color.Transparent, RoundedCornerShape(6.dp)),
         contentAlignment = Alignment.Center
     ) {
@@ -281,7 +275,7 @@ private fun DayCourseRow(
     Row(modifier = Modifier.fillMaxWidth()) {
         // 时间段标签
         Box(
-            modifier = Modifier.width(100.dp).height(72.dp).border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(6.dp)).background(MaterialTheme.colorScheme.surface, RoundedCornerShape(6.dp)),
+            modifier = Modifier.width(72.dp).height(72.dp).background(MaterialTheme.colorScheme.surface, RoundedCornerShape(6.dp)),
             contentAlignment = Alignment.Center
         ) {
             Text(text = slotLabel, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
