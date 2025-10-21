@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,6 +46,8 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 
 private fun segmentOf(slot: String): String {
     val parts = slot.split(":")
@@ -76,6 +79,7 @@ fun DayViewScreen(onNavigateCycle: () -> Unit, onStartCourseView: () -> Unit, on
     val currentDayIndex by viewModel.currentDayIndex.collectAsState()
     val weekDates by viewModel.weekDates.collectAsState()
     val showBreaks by viewModel.showBreaks.collectAsState()
+    val showTomorrowPreview by viewModel.showTomorrowPreview.collectAsState()
 
     // 页面恢复时刷新数据，确保设置页更改生效
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -157,7 +161,7 @@ fun DayViewScreen(onNavigateCycle: () -> Unit, onStartCourseView: () -> Unit, on
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.backToToday() }, enabled = !viewModel.isAtToday()) {
+                    IconButton(onClick = { viewModel.backToTodayManual() }, enabled = !viewModel.isAtToday() || showTomorrowPreview) {
                         Icon(imageVector = Icons.Filled.DateRange, contentDescription = "回到今天")
                     }
                     var menuExpanded by remember { mutableStateOf(false) }
@@ -192,9 +196,9 @@ fun DayViewScreen(onNavigateCycle: () -> Unit, onStartCourseView: () -> Unit, on
 
             val pageWeek = page / 7 + 1
             val pageDayIndex = page % 7
-
-            val displayDayIndex = pageDayIndex
-            val displayWeek = pageWeek
+            
+            // 检查是否应该显示明日预告横幅
+            val shouldShowBanner = viewModel.shouldShowTomorrowPreview(pageWeek, pageDayIndex)
 
             Column(
                 modifier = Modifier
@@ -204,6 +208,14 @@ fun DayViewScreen(onNavigateCycle: () -> Unit, onStartCourseView: () -> Unit, on
                     .navigationBarsPadding()
                     .padding(12.dp)
             ) {
+                // 明日课程预告横幅 - 仅在次日页面显示且常驻
+                if (shouldShowBanner) {
+                    TomorrowPreviewBanner(
+                        onDismiss = { viewModel.backToTodayManual() }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                
                 if (timeSlots.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(text = "暂无时间段设置", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -408,6 +420,82 @@ private fun ContinuationCell(colorHex: String, courseName: String) {
 @Composable
 private fun EmptyCourseCell() {
     Box(modifier = Modifier.fillMaxSize()) {
-        // 留空，不显示“空”字
+        // 留空，不显示"空"字
+    }
+}
+
+@Composable
+private fun TomorrowPreviewBanner(
+    onDismiss: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onDismiss() },
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                            RoundedCornerShape(20.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.DateRange,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
+                    Text(
+                        text = "明日课程预告",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Text(
+                        text = "当前显示明日课程安排",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                    )
+                }
+            }
+            
+            OutlinedButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.primary
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.padding(start = 8.dp)
+            ) {
+                Text(
+                    text = "返回今天",
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 14.sp
+                )
+            }
+        }
     }
 }

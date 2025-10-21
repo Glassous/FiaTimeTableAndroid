@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
 /**
@@ -40,6 +41,10 @@ class DayViewViewModel(private val repository: TimeTableRepository) : ViewModel(
     // 是否显示休息分隔线
     private val _showBreaks = MutableStateFlow(true)
     val showBreaks: StateFlow<Boolean> = _showBreaks.asStateFlow()
+
+    // 明日课程预告状态
+    private val _showTomorrowPreview = MutableStateFlow(false)
+    val showTomorrowPreview: StateFlow<Boolean> = _showTomorrowPreview.asStateFlow()
 
     private val dateFormatterYMD = DateTimeFormatter.ofPattern("yyyy-MM-dd")
     private val dateFormatterMD = DateTimeFormatter.ofPattern("MM/dd")
@@ -124,16 +129,156 @@ class DayViewViewModel(private val repository: TimeTableRepository) : ViewModel(
                 _currentWeek.value = boundedWeek
                 _currentDayIndex.value = prevDay.coerceIn(0, 6)
 
-                // 仅根据当前周刷新本周日期，避免回到“本周”
+                // 仅根据当前周刷新本周日期，避免回到"本周"
                 recomputeWeekDatesOnly()
 
                 // 刷新显示设置
                 _showBreaks.value = repository.getShowBreaks()
+                
+                // 检查是否需要智能跳转到明日
+                checkAndAutoJumpToTomorrow()
             } catch (e: Exception) {
                 // 设置项仍尽可能刷新，位置保持不变
                 _showBreaks.value = repository.getShowBreaks()
             }
         }
+    }
+
+    /**
+     * 检查当天课程状态，决定是否自动跳转到明日
+     */
+    private fun checkAndAutoJumpToTomorrow() {
+        val today = LocalDate.now()
+        val todayDayOfWeek = today.dayOfWeek.value - 1 // 0-6对应周一到周日
+        
+        // 只有当前显示的是今天时才进行检查
+        if (_currentDayIndex.value == todayDayOfWeek) {
+            val shouldJumpToTomorrow = shouldAutoJumpToTomorrow()
+            if (shouldJumpToTomorrow) {
+                jumpToTomorrow()
+            }
+        }
+    }
+
+    /**
+     * 判断是否应该自动跳转到明日
+     * 条件：1. 当天没有课程 或 2. 当天所有课程已结束
+     */
+    private fun shouldAutoJumpToTomorrow(): Boolean {
+        val currentTime = LocalTime.now()
+        val todayDayOfWeek = LocalDate.now().dayOfWeek.value - 1
+        val todayCourses = getTodayCourses(todayDayOfWeek)
+        
+        // 如果今天没有课程，返回true
+        if (todayCourses.isEmpty()) {
+            return true
+        }
+        
+        // 检查今天所有课程是否都已结束
+        val timeSlots = _timeTableData.value.timeSlots
+        return todayCourses.all { (slotIndex, _) ->
+            val slotTime = timeSlots.getOrNull(slotIndex) ?: return@all false
+            val endTime = parseEndTime(slotTime)
+            endTime?.isBefore(currentTime) ?: false
+        }
+    }
+
+    /**
+     * 获取今天的课程列表
+     */
+    private fun getTodayCourses(dayIndex: Int): List<Pair<Int, Course>> {
+        val courses = _timeTableData.value.courses[_selectedTerm.value] ?: return emptyList()
+        val dayCourses = courses[dayIndex] ?: return emptyList()
+        val result = mutableListOf<Pair<Int, Course>>()
+        
+        dayCourses.forEach { (slotIndex, data) ->
+            when (data) {
+                is List<*> -> {
+                    val filtered = data.filterIsInstance<Course>()
+                        .filter { it.selectedWeeks.contains(_currentWeek.value) }
+                    filtered.forEach { course ->
+                        result.add(slotIndex to course)
+                    }
+                }
+            }
+        }
+        
+        return result
+    }
+
+    /**
+     * 解析时间段的结束时间
+     */
+    private fun parseEndTime(timeSlot: String): LocalTime? {
+        return try {
+            val endTimeStr = timeSlot.split("-").getOrNull(1) ?: return null
+            val parts = endTimeStr.split(":")
+            val hour = parts.getOrNull(0)?.toIntOrNull() ?: return null
+            val minute = parts.getOrNull(1)?.toIntOrNull() ?: return null
+            LocalTime.of(hour, minute)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * 跳转到明日并设置预告状态
+     */
+    private fun jumpToTomorrow() {
+        val tomorrow = LocalDate.now().plusDays(1)
+        val tomorrowDayOfWeek = tomorrow.dayOfWeek.value - 1
+        
+        // 计算明日所在的周
+        val term = _timeTableData.value.terms.find { it.name == _selectedTerm.value } ?: return
+        val tomorrowWeek = calculateWeekForDate(tomorrow, term)
+        
+        if (tomorrowWeek != null && tomorrowWeek <= term.weeks) {
+            _currentWeek.value = tomorrowWeek
+            _currentDayIndex.value = tomorrowDayOfWeek
+            _showTomorrowPreview.value = true
+            recomputeWeekDatesOnly()
+        }
+    }
+
+    /**
+     * 计算指定日期所在的学期周数
+     */
+    private fun calculateWeekForDate(date: LocalDate, term: com.glassous.fiatimetable.data.model.Term): Int? {
+        return try {
+            val startDate = LocalDate.parse(term.startDate, dateFormatterYMD)
+            val daysBetween = java.time.temporal.ChronoUnit.DAYS.between(startDate, date).toInt()
+            if (daysBetween >= 0) (daysBetween / 7) + 1 else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * 检查是否应该显示明日预告横幅
+     * 仅在显示次日页面时显示
+     */
+    fun shouldShowTomorrowPreview(pageWeek: Int, pageDayIndex: Int): Boolean {
+        val today = LocalDate.now()
+        val todayDayOfWeek = today.dayOfWeek.value - 1
+        
+        // 计算今天所在的学期周数
+        val term = _timeTableData.value.terms.find { it.name == _selectedTerm.value } ?: return false
+        val todayWeek = calculateWeekForDate(today, term) ?: return false
+        
+        // 计算明天的日期和周数
+        val tomorrow = today.plusDays(1)
+        val tomorrowDayOfWeek = tomorrow.dayOfWeek.value - 1
+        val tomorrowWeek = calculateWeekForDate(tomorrow, term) ?: return false
+        
+        // 检查当前页面是否是明日页面
+        return pageWeek == tomorrowWeek && pageDayIndex == tomorrowDayOfWeek
+    }
+
+    /**
+     * 手动返回今天
+     */
+    fun backToTodayManual() {
+        backToToday()
     }
 
     /** 切换到前一天（循环） */
