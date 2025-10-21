@@ -137,7 +137,46 @@ class WeekViewViewModel(private val repository: TimeTableRepository) : ViewModel
      * 刷新数据
      */
     fun refreshData() {
-        loadData()
+        viewModelScope.launch {
+            try {
+                val prevSelectedTerm = _selectedTerm.value
+                val prevWeek = _currentWeek.value
+
+                val data = repository.getTimeTableData()
+                val newData = if (data.terms.isEmpty()) createDefaultData() else data
+                _timeTableData.value = newData
+
+                // 选中学期：优先使用存储的设置；否则保留原选中；再否则取首个
+                val repoTerm = repository.getSelectedTerm()
+                val newSelected = when {
+                    repoTerm.isNotEmpty() && newData.terms.any { it.name == repoTerm } -> repoTerm
+                    newData.terms.any { it.name == prevSelectedTerm } -> prevSelectedTerm
+                    newData.terms.isNotEmpty() -> newData.terms.first().name
+                    else -> ""
+                }
+                _selectedTerm.value = newSelected
+                if (newSelected.isNotEmpty()) repository.saveSelectedTerm(newSelected)
+
+                // 保留周位置，在新学期范围内约束
+                val term = newData.terms.find { it.name == newSelected }
+                val boundedWeek = term?.let { prevWeek.coerceIn(1, it.weeks) } ?: prevWeek
+                _currentWeek.value = boundedWeek
+                // 仅刷新日期，不重置为“本周”
+                recomputeWeekDatesOnly()
+
+                // 刷新开关设置
+                _showWeekend.value = repository.getShowWeekend()
+                _showSaturday.value = repository.getShowSaturday()
+                _showSunday.value = repository.getShowSunday()
+                _showBreaks.value = repository.getShowBreaks()
+            } catch (e: Exception) {
+                // 失败时尽可能刷新设置项，位置保持
+                _showWeekend.value = repository.getShowWeekend()
+                _showSaturday.value = repository.getShowSaturday()
+                _showSunday.value = repository.getShowSunday()
+                _showBreaks.value = repository.getShowBreaks()
+            }
+        }
     }
 
     /**

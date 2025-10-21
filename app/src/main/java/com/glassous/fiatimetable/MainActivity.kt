@@ -33,6 +33,7 @@ import com.glassous.fiatimetable.ui.screen.WeekViewScreen
 import com.glassous.fiatimetable.ui.screen.SettingsScreen
 import com.glassous.fiatimetable.ui.theme.FiaTimeTableTheme
 import com.glassous.fiatimetable.data.repository.TimeTableRepository
+import androidx.navigation.NavGraph.Companion.findStartDestination
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -147,24 +148,66 @@ fun MainScreen(startDestinationRoute: String) {
                     pureMode = pureMode,
                     onEnterPureMode = { pureMode = true },
                     onExitPureMode = { pureMode = false },
-                    onNavigateCycle = { navController.navigate(Screen.CourseView.route) },
-                    onStartCourseView = { navController.navigate(Screen.CourseView.route) },
-                    onNavigateTo = { screen -> navController.navigate(screen.route) }
+                    onNavigateCycle = {
+                        navController.navigate(Screen.CourseView.route) {
+                            launchSingleTop = true
+                            restoreState = true
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        }
+                    },
+                    onStartCourseView = {
+                        navController.navigate(Screen.CourseView.route) {
+                            launchSingleTop = true
+                            restoreState = true
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        }
+                    },
+                    onNavigateTo = { screen ->
+                        navController.navigate(screen.route) {
+                            launchSingleTop = true
+                            restoreState = true
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        }
+                    }
                 )
             }
             composable(Screen.DayView.route) {
                 val ctx = LocalContext.current
                 val activity = LocalContext.current as? ComponentActivity
                 DayViewScreen(
-                    onNavigateCycle = { navController.navigate(Screen.WeekView.route) },
-                    onStartCourseView = { navController.navigate(Screen.CourseView.route) },
-                    onNavigateTo = { screen -> navController.navigate(screen.route) }
+                    onNavigateCycle = {
+                        navController.navigate(Screen.WeekView.route) {
+                            launchSingleTop = true
+                            restoreState = true
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        }
+                    },
+                    onStartCourseView = {
+                        navController.navigate(Screen.CourseView.route) {
+                            launchSingleTop = true
+                            restoreState = true
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        }
+                    },
+                    onNavigateTo = { screen ->
+                        navController.navigate(screen.route) {
+                            launchSingleTop = true
+                            restoreState = true
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        }
+                    }
                 )
             }
             composable(Screen.Settings.route) {
                 SettingsScreen(
                     onNavigateBack = { navController.popBackStack() },
-                    onNavigateTo = { screen -> navController.navigate(screen.route) }
+                    onNavigateTo = { screen ->
+                        navController.navigate(screen.route) {
+                            launchSingleTop = true
+                            restoreState = true
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        }
+                    }
                 )
             }
             composable(Screen.CourseView.route) {
@@ -172,8 +215,20 @@ fun MainScreen(startDestinationRoute: String) {
                 val repo = remember(ctx) { TimeTableRepository(ctx) }
                 CourseViewScreen(
                     repository = repo,
-                    onNavigateCycle = { navController.navigate(Screen.DayView.route) },
-                    onNavigateTo = { screen -> navController.navigate(screen.route) }
+                    onNavigateCycle = {
+                        navController.navigate(Screen.DayView.route) {
+                            launchSingleTop = true
+                            restoreState = true
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        }
+                    },
+                    onNavigateTo = { screen ->
+                        navController.navigate(screen.route) {
+                            launchSingleTop = true
+                            restoreState = true
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        }
+                    }
                 )
             }
         }

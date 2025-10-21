@@ -95,7 +95,46 @@ class DayViewViewModel(private val repository: TimeTableRepository) : ViewModel(
     }
 
     /** 刷新数据 */
-    fun refreshData() { loadData() }
+    fun refreshData() {
+        viewModelScope.launch {
+            try {
+                val prevSelectedTerm = _selectedTerm.value
+                val prevWeek = _currentWeek.value
+                val prevDay = _currentDayIndex.value
+
+                val data = repository.getTimeTableData()
+                // 若数据为空则使用默认数据，但不重置当前位置
+                val newData = if (data.terms.isEmpty()) createDefaultData() else data
+                _timeTableData.value = newData
+
+                // 选中学期：优先使用存储的设置；否则保留原选中；再否则取首个
+                val repoTerm = repository.getSelectedTerm()
+                val newSelected = when {
+                    repoTerm.isNotEmpty() && newData.terms.any { it.name == repoTerm } -> repoTerm
+                    newData.terms.any { it.name == prevSelectedTerm } -> prevSelectedTerm
+                    newData.terms.isNotEmpty() -> newData.terms.first().name
+                    else -> ""
+                }
+                _selectedTerm.value = newSelected
+                if (newSelected.isNotEmpty()) repository.saveSelectedTerm(newSelected)
+
+                // 保留周/日位置，并在新学期范围内进行约束
+                val term = newData.terms.find { it.name == newSelected }
+                val boundedWeek = term?.let { prevWeek.coerceIn(1, it.weeks) } ?: prevWeek
+                _currentWeek.value = boundedWeek
+                _currentDayIndex.value = prevDay.coerceIn(0, 6)
+
+                // 仅根据当前周刷新本周日期，避免回到“本周”
+                recomputeWeekDatesOnly()
+
+                // 刷新显示设置
+                _showBreaks.value = repository.getShowBreaks()
+            } catch (e: Exception) {
+                // 设置项仍尽可能刷新，位置保持不变
+                _showBreaks.value = repository.getShowBreaks()
+            }
+        }
+    }
 
     /** 切换到前一天（循环） */
     fun prevDay() {
