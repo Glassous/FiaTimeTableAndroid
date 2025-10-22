@@ -357,6 +357,34 @@ class SettingsViewModel(private val repository: TimeTableRepository) : ViewModel
             repository.saveShowNextCourseCard(show)
         }
     }
+
+    // 新增：删除学期，同时维护选中项与相关课程/网络课数据
+    fun deleteTerm(name: String) {
+        viewModelScope.launch {
+            val updatedTerms = _terms.value.toMutableList().apply { removeAll { it.name == name } }
+            repository.saveTerms(updatedTerms)
+            _terms.value = updatedTerms
+
+            // 更新选中学期
+            val newSelected = when {
+                updatedTerms.any { it.name == _selectedTerm.value } -> _selectedTerm.value
+                updatedTerms.isNotEmpty() -> updatedTerms.first().name
+                else -> ""
+            }
+            _selectedTerm.value = newSelected
+            repository.saveSelectedTerm(newSelected)
+
+            // 清理被删除学期的课程与网络选修课数据
+            val courses = repository.getCourses().toMutableMap()
+            if (courses.remove(name) != null) {
+                repository.saveCourses(courses)
+            }
+            val online = repository.getOnlineCourses().toMutableMap()
+            if (online.remove(name) != null) {
+                repository.saveOnlineCourses(online)
+            }
+        }
+    }
 }
 
 class SettingsViewModelFactory(private val context: Context) : ViewModelProvider.Factory {
