@@ -74,6 +74,10 @@ class SettingsViewModel(private val repository: TimeTableRepository) : ViewModel
     private val _showNextCourseCard = MutableStateFlow(true)
     val showNextCourseCard: StateFlow<Boolean> = _showNextCourseCard.asStateFlow()
 
+    // 新增：课视图字段放大弹窗开关
+    private val _showFieldDialog = MutableStateFlow(true)
+    val showFieldDialog: StateFlow<Boolean> = _showFieldDialog.asStateFlow()
+
     init {
         viewModelScope.launch {
             loadData()
@@ -115,6 +119,8 @@ class SettingsViewModel(private val repository: TimeTableRepository) : ViewModel
             _showBreaks.value = repository.getShowBreaks()
             // 加载是否显示“再下节课”小卡片
             _showNextCourseCard.value = repository.getShowNextCourseCard()
+            // 加载是否显示字段放大弹窗
+            _showFieldDialog.value = repository.getShowFieldDialog()
         }
     }
 
@@ -355,6 +361,14 @@ class SettingsViewModel(private val repository: TimeTableRepository) : ViewModel
         viewModelScope.launch {
             _showNextCourseCard.value = show
             repository.saveShowNextCourseCard(show)
+        }
+    }
+
+    // 新增：设置是否显示字段放大弹窗
+    fun setShowFieldDialog(show: Boolean) {
+        viewModelScope.launch {
+            _showFieldDialog.value = show
+            repository.saveShowFieldDialog(show)
         }
     }
 

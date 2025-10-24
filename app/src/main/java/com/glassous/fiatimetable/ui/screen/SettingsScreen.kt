@@ -73,6 +73,8 @@ fun SettingsScreen(onNavigateBack: () -> Unit, onNavigateTo: (Screen) -> Unit) {
     val showSunday by viewModel.showSunday.collectAsState()
     // 新增：是否显示“再下节课”小卡片
     val showNextCourseCard by viewModel.showNextCourseCard.collectAsState()
+    // 新增：字段放大弹窗开关
+    val showFieldDialog by viewModel.showFieldDialog.collectAsState()
     // 新增：是否显示午休/晚休
     val showBreaks by viewModel.showBreaks.collectAsState()
 
@@ -314,12 +316,16 @@ fun SettingsScreen(onNavigateBack: () -> Unit, onNavigateTo: (Screen) -> Unit) {
                             Text("显示再下节课小卡片", style = MaterialTheme.typography.bodyLarge)
                             Switch(checked = showNextCourseCard, onCheckedChange = { viewModel.setShowNextCourseCard(it) })
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "控制课视图底部的下一课预览小卡片",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        // 新增：课视图字段放大弹窗开关
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("启用字段放大弹窗", style = MaterialTheme.typography.bodyLarge)
+                            Switch(checked = showFieldDialog, onCheckedChange = { viewModel.setShowFieldDialog(it) })
+                        }
                     }
                 }
             }

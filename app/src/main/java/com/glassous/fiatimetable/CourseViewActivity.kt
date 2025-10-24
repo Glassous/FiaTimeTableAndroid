@@ -9,6 +9,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.PagerDefaults
@@ -23,10 +24,12 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
@@ -49,6 +52,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.window.Dialog
 
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.animation.animateColorAsState
@@ -114,7 +118,10 @@ class CourseViewActivity : ComponentActivity() {
                 )
             }
 
+
         }
+
+
     }
 }
 
@@ -157,9 +164,12 @@ fun CourseViewScreen(
 
     // 新增：读取设置中 mini 卡片显示开关并监听变更
     var showMiniCard by remember { mutableStateOf(repository.getShowNextCourseCard()) }
+    // 新增：读取设置中字段放大弹窗开关并监听变更
+    var showFieldDialog by remember { mutableStateOf(repository.getShowFieldDialog()) }
     DisposableEffect(Unit) {
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
             showMiniCard = repository.getShowNextCourseCard()
+            showFieldDialog = repository.getShowFieldDialog()
         }
         repository.registerOnThemeChangedListener(listener)
         onDispose { repository.unregisterOnThemeChangedListener(listener) }
@@ -240,6 +250,9 @@ fun CourseViewScreen(
     }
     val pagerState = rememberPagerState(initialPage = initialIndex) { (courseCards.size + 1).coerceAtLeast(1) }
 
+    var enlargedFieldText by remember { mutableStateOf<String?>(null) }
+    var enlargedFieldColor by remember { mutableStateOf(ComposeColor.Unspecified) }
+
     // PagerState 扩展：计算页面偏移（引用 https://www.sinasamaki.com/pager-animations/ 的思路）
     fun pagerOffsetForPage(page: Int): Float = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
 
@@ -290,7 +303,11 @@ fun CourseViewScreen(
             }
         )
     }) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Box(modifier = Modifier
+            .fillMaxSize()
+            .padding(padding)
+            .let { if (enlargedFieldText != null) it.blur(24.dp) else it }
+        ) {
             VerticalPager(
                 state = pagerState,
                 beyondViewportPageCount = 2,
@@ -329,7 +346,13 @@ fun CourseViewScreen(
                                     this.rotationX = rotationXDeg
                                     this.transformOrigin = TransformOrigin(0.5f, 0.5f)
                                     this.shadowElevation = 0f
+                                },
+                            onFieldClick = { value, color ->
+                                if (showFieldDialog) {
+                                    enlargedFieldText = value
+                                    enlargedFieldColor = color.copy(alpha = 0.90f)
                                 }
+                            }
                         )
                         if (showMiniCard) {
                             val overlayModifier = Modifier
@@ -357,6 +380,31 @@ fun CourseViewScreen(
 
         }
     }
+
+    if (enlargedFieldText != null) {
+        Dialog(onDismissRequest = { enlargedFieldText = null }) {
+            Surface(
+                tonalElevation = 6.dp,
+                color = enlargedFieldColor,
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Box(
+                    modifier = Modifier
+                        .sizeIn(minWidth = 280.dp, minHeight = 180.dp)
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = enlargedFieldText ?: "",
+                        fontSize = 52.sp,
+                        lineHeight = 58.sp,
+                        textAlign = TextAlign.Center,
+                        color = if (enlargedFieldColor.luminance() > 0.5f) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+    }
 }
 
 private data class CourseCardItem(
@@ -372,7 +420,7 @@ private data class CourseCardItem(
 )
 
 @Composable
-private fun CourseBigCard(item: CourseCardItem, modifier: Modifier = Modifier) {
+private fun CourseBigCard(item: CourseCardItem, modifier: Modifier = Modifier, onFieldClick: (String, ComposeColor) -> Unit) {
     val bgColor = try {
         ComposeColor(android.graphics.Color.parseColor(item.course.color))
     } catch (_: Exception) {
@@ -483,7 +531,8 @@ private fun CourseBigCard(item: CourseCardItem, modifier: Modifier = Modifier) {
                 fontWeight = FontWeight.Bold,
                 color = ComposeColor.White,
                 maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.clickable { onFieldClick(item.course.courseName, bgColor) }
             )
             if (item.course.room.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
@@ -492,7 +541,8 @@ private fun CourseBigCard(item: CourseCardItem, modifier: Modifier = Modifier) {
                     fontSize = 24.sp,
                     color = ComposeColor.White.copy(alpha = 0.95f),
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.clickable { onFieldClick(item.course.room, bgColor) }
                 )
             }
             if (item.course.teacher.isNotEmpty()) {
@@ -502,25 +552,26 @@ private fun CourseBigCard(item: CourseCardItem, modifier: Modifier = Modifier) {
                     fontSize = 20.sp,
                     color = ComposeColor.White.copy(alpha = 0.9f),
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.clickable { onFieldClick(item.course.teacher, bgColor) }
                 )
             }
             Spacer(Modifier.height(20.dp))
-            
             // 日期和周信息
             Text(
                 text = "$dateText  第${item.week}周  $dayName",
                 fontSize = 16.sp,
                 color = ComposeColor.White.copy(alpha = 0.85f),
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.clickable { onFieldClick("$dateText  第${item.week}周  $dayName", bgColor) }
             )
             Spacer(Modifier.height(4.dp))
-            
             Text(
                 text = "${formatTime(item.start)} - ${formatTime(item.end)}",
                 fontSize = 18.sp,
                 color = ComposeColor.White.copy(alpha = 0.85f),
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.clickable { onFieldClick("${formatTime(item.start)} - ${formatTime(item.end)}", bgColor) }
             )
         }
     }
