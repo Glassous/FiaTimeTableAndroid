@@ -1,22 +1,23 @@
 # FiaTimeTable Android
 
-一个以 Jetpack Compose 构建的现代课程表应用，提供周视图与日视图、灵活的时间段设置、数据备份/导入，以及基于阿里云 OSS 的云端同步。项目采用 MVVM 架构，使用 SharedPreferences + Gson 持久化数据。
+一个以 Jetpack Compose 构建的现代课程表应用，提供周视图、日视图与课程视图、灵活的时间段设置、数据备份/导入，以及基于阿里云 OSS 的云端同步。项目采用 MVVM 架构，使用 SharedPreferences + Gson 持久化数据。
 
 ## 亮点功能
 
-- 周视图与日视图：在周视图快速定位课程、支持“纯净模式”沉浸显示；日视图支持前后天切换与“明日课程预览”。
+- 周视图与日视图：在周视图快速定位课程、支持"纯净模式"沉浸显示；日视图支持前后天切换与"明日课程预览"。
+- 课程视图：以垂直分页方式展示课程卡片，包含当前/下一节课标记，支持字段放大弹窗查看详细信息。
 - 课程管理：添加/编辑/删除课程，支持多节连排（自动生成延续标记）。
-- 学期管理与时间段：管理学期（名称、总周数、开学日期），提供“早/午/晚”分段与快速配置对话框。
+- 学期管理与时间段：管理学期（名称、总周数、开学日期），提供"早/午/晚"分段与快速配置对话框。
 - 在线课程：单独管理不占固定时间段的网络课程。
-- 显示选项：可切换“显示周末”“显示休息分隔”。
-- 主题与起始页：支持系统/浅色/深色主题与默认起始页（日/周）。
+- 显示选项：可切换"显示周末"、"显示休息分隔"、"显示当前课程"、"显示下一节课"和"启用字段放大弹窗"。
+- 主题与起始页：支持系统/浅色/深色主题与默认起始页（日/周/课程）。
 - 数据备份与导入：导出为 JSON，支持从备份 JSON 导入；并可一键上传/下载到阿里云 OSS。
 
 ## 架构与存储
 
 - 技术栈：Kotlin、Jetpack Compose、Navigation Compose、MVVM。
 - 数据仓库：`TimeTableRepository` 使用 `SharedPreferences` 存储，`Gson` 序列化/反序列化。
-- 视图模型：`SettingsViewModel`、`WeekViewViewModel`、`DayViewViewModel`。
+- 视图模型：`SettingsViewModel`、`WeekViewViewModel`、`DayViewViewModel`、`CourseViewViewModel`。
 - 导航：`Screen` 枚举路由；`MainActivity` 初始化 `NavController` 与 `NavHost`。
 
 ## 构建环境
@@ -44,17 +45,20 @@
 - 周视图（`WeekViewScreen`）
   - 在顶部/工具栏切换周次：上一周、下一周、返回本周。
   - 点击空白格添加课程；点击已有课程进入编辑。
-  - 开启“纯净模式”可隐藏系统栏，沉浸显示课程表。
   - 可在设置中切换 `显示周末` 与 `显示休息分隔`。
 - 日视图（`DayViewScreen`）
   - 查看当天课程，支持前一天/后一天切换。
-  - 显示“明日课程预览”，便于提前安排。
+  - 显示"明日课程预览"，便于提前安排。
+- 课程视图（`CourseViewScreen`）
+  - 以垂直分页方式展示课程卡片，包含当前/下一节课标记。
+  - 支持字段放大弹窗查看详细信息。
+  - 可在设置中切换显示选项（显示当前课程、显示下一节课、启用字段放大弹窗）。
 - 设置页（`SettingsScreen`）
-  - 界面主题：系统/浅色/深色；起始页：日/周。
+  - 界面主题：系统/浅色/深色；起始页：日/周/课程。
   - 学期管理：名称、总周数、开学日期（日期选择器），支持保存与切换。
-  - 时间段设置：按“早/午/晚”分段添加/移除节次；快速配置可设起始时间、时长、间隔与节次数。
+  - 时间段设置：按"早/午/晚"分段添加/移除节次；快速配置可设起始时间、时长、间隔与节次数。
   - 数据备份与导入：导出课程为 JSON 文件，或从 JSON 文件导入。
-  - 云端同步（OSS）：打开“OSS 配置”对话框完成配置，并在设置页上传/下载备份。
+  - 云端同步（OSS）：打开"OSS 配置"对话框完成配置，并在设置页上传/下载备份。
 
 ## 云端同步（阿里云 OSS）
 
@@ -83,7 +87,7 @@
 - `TimeTableData`：`terms`、`courses`、`onlineCourses`、`timeSlots`、`selectedTerm`、`theme`
 - 持久化键（SharedPreferences）：
   - 课程表：`xf_terms`、`xf_courses`、`xf_onlineCourses`、`xf_timeSlots`、`xf_term`、`xf_theme`
-  - 界面偏好：`xf_start_page`、`xf_show_weekend`、`xf_show_breaks`
+  - 界面偏好：`xf_start_page`、`xf_show_weekend`、`xf_show_breaks`、`xf_show_current_course`、`xf_show_next_course`、`xf_enable_field_zoom`
   - OSS：`xf_oss_endpoint`、`xf_oss_bucket`、`xf_oss_object_key`、`xf_oss_ak_id`、`xf_oss_ak_secret`、`xf_oss_region`
 
 ## 备份与导入格式
@@ -98,9 +102,9 @@
 
 ## 许可证
 
-- 本项目采用 **GNU Affero General Public License v3.0 (AGPLv3)** 许可证。
-- 此许可证要求任何基于本项目的衍生作品也必须开源，包括通过网络服务提供的修改版本。
-- 详细条款请参阅仓库根目录 `LICENSE` 文件与官方文本：`https://www.gnu.org/licenses/agpl-3.0.html`。
+- 本项目采用 **Apache License 2.0** 许可证。
+- 此许可证允许自由使用、修改、分发和创建衍生作品，同时保留了版权声明和许可证声明。
+- 详细条款请参阅仓库根目录 `LICENSE` 文件与官方文本：`http://www.apache.org/licenses/LICENSE-2.0`。
 
 ## 致谢
 
