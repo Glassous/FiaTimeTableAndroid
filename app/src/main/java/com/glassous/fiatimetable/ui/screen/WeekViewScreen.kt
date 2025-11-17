@@ -244,11 +244,11 @@ fun WeekViewScreen(
     
             HorizontalPager(
                 state = pagerState,
-                beyondViewportPageCount = 1,
+                beyondViewportPageCount = 0,
                 flingBehavior = PagerDefaults.flingBehavior(state = pagerState),
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(8.dp)
+                    .padding(horizontal = 8.dp)
             ) { page ->
                 val weekIndex = page + 1
                 TimeTableGrid(
@@ -485,50 +485,67 @@ private fun TimeTableGrid(
     showBreaks: Boolean,
     modifier: Modifier = Modifier
 ) {
-    // 过滤函数：根据当前周返回该格子的有效数据
-    fun cellForWeek(dayIndex: Int, slotIndex: Int): Any? {
-        val dayCourses = courses[dayIndex] ?: return null
-        val data = dayCourses[slotIndex] ?: return null
-        return when (data) {
-            is List<*> -> {
-                val filtered = data.filterIsInstance<Course>().filter { it.selectedWeeks.contains(currentWeek) }
-                if (filtered.isNotEmpty()) filtered else null
-            }
-            is Map<*, *> -> {
-                if (data["continued"] == true) {
-                    val from = (data["fromSlot"] as? Number)?.toInt() ?: slotIndex
-                    val origin = dayCourses[from]
-                    if (origin is List<*>) {
-                        val filtered = origin.filterIsInstance<Course>().filter { it.selectedWeeks.contains(currentWeek) }
-                        if (filtered.isNotEmpty()) data else null
-                    } else null
-                } else null
-            }
-            else -> null
+    val mainCache = remember(courses, currentWeek) {
+        val result = mutableMapOf<Int, MutableMap<Int, List<Course>?>>()
+        (0..6).forEach { d ->
+            val dayMap = mutableMapOf<Int, List<Course>?>()
+            val dayCourses = courses[d] ?: emptyMap()
+            dayMap.putAll(dayCourses.mapValues { entry ->
+                val v = entry.value
+                when (v) {
+                    is List<*> -> v.filterIsInstance<Course>().filter { it.selectedWeeks.contains(currentWeek) }.takeIf { it.isNotEmpty() }
+                    is Map<*, *> -> null
+                    else -> null
+                }
+            })
+            result[d] = dayMap
         }
+        result
     }
-
-    // 当本周该格子没有课，但其他周存在课时，返回该课程（用于灰色占位显示）
-    fun cellForOtherWeeksCourse(dayIndex: Int, slotIndex: Int): Course? {
-        val dayCourses = courses[dayIndex] ?: return null
-        val data = dayCourses[slotIndex] ?: return null
-        return when (data) {
-            is List<*> -> {
-                val candidates = data.filterIsInstance<Course>().filter { !it.selectedWeeks.contains(currentWeek) }
-                candidates.firstOrNull()
+    val contCourseCache = remember(courses, currentWeek) {
+        val result = mutableMapOf<Int, MutableMap<Int, Course?>>()
+        (0..6).forEach { d ->
+            val dayMap = mutableMapOf<Int, Course?>()
+            val dayCourses = courses[d] ?: emptyMap()
+            dayCourses.forEach { (slotIndex, data) ->
+                val contCourse = when (data) {
+                    is Map<*, *> -> {
+                        if (data["continued"] == true) {
+                            val from = (data["fromSlot"] as? Number)?.toInt() ?: slotIndex
+                            val origin = dayCourses[from]
+                            if (origin is List<*>) origin.filterIsInstance<Course>().firstOrNull { it.selectedWeeks.contains(currentWeek) } else null
+                        } else null
+                    }
+                    else -> null
+                }
+                dayMap[slotIndex] = contCourse
             }
-            is Map<*, *> -> {
-                if (data["continued"] == true) {
-                    val from = (data["fromSlot"] as? Number)?.toInt() ?: slotIndex
-                    val origin = dayCourses[from]
-                    if (origin is List<*>) {
-                        val candidates = origin.filterIsInstance<Course>().filter { !it.selectedWeeks.contains(currentWeek) }
-                        candidates.firstOrNull()
-                    } else null
-                } else null
-            }
-            else -> null
+            result[d] = dayMap
         }
+        result
+    }
+    val otherCache = remember(courses, currentWeek) {
+        val result = mutableMapOf<Int, MutableMap<Int, Course?>>()
+        (0..6).forEach { d ->
+            val dayMap = mutableMapOf<Int, Course?>()
+            val dayCourses = courses[d] ?: emptyMap()
+            dayCourses.forEach { (slotIndex, data) ->
+                val other = when (data) {
+                    is List<*> -> data.filterIsInstance<Course>().firstOrNull { !it.selectedWeeks.contains(currentWeek) }
+                    is Map<*, *> -> {
+                        if (data["continued"] == true) {
+                            val from = (data["fromSlot"] as? Number)?.toInt() ?: slotIndex
+                            val origin = dayCourses[from]
+                            if (origin is List<*>) origin.filterIsInstance<Course>().firstOrNull { !it.selectedWeeks.contains(currentWeek) } else null
+                        } else null
+                    }
+                    else -> null
+                }
+                dayMap[slotIndex] = other
+            }
+            result[d] = dayMap
+        }
+        result
     }
 
     val activity = (LocalContext.current as? ComponentActivity)
@@ -552,8 +569,15 @@ private fun TimeTableGrid(
     }
 
     // 计算是否需要显示“晚休”（仅当本周晚上存在课程时）
-    val eveningStartIndex = timeSlots.indexOfFirst { segmentOf(it) == "evening" }
+    val eveningStartIndex = remember(timeSlots) { timeSlots.indexOfFirst { segmentOf(it) == "evening" } }
     val hasEveningSlots = eveningStartIndex != -1
+    val dayIndices = remember(showSaturday, showSunday) {
+        buildList {
+            addAll(0..4)
+            if (showSaturday) add(5)
+            if (showSunday) add(6)
+        }
+    }
 
     LazyColumn(
         modifier = modifier,
@@ -568,7 +592,7 @@ private fun TimeTableGrid(
         item { Spacer(modifier = Modifier.height(4.dp)) }
 
         // 课程表内容，加入午休/晚休分隔
-        itemsIndexed(timeSlots) { timeSlotIndex, timeSlot ->
+        itemsIndexed(timeSlots, key = { _, slot -> slot }) { timeSlotIndex, timeSlot ->
             val currentSegment = segmentOf(timeSlot)
             val previousSegment = if (timeSlotIndex > 0) segmentOf(timeSlots[timeSlotIndex - 1]) else null
             Column {
@@ -633,89 +657,41 @@ private fun TimeTableGrid(
                     }
                     Spacer(modifier = Modifier.width(1.dp))
                     // 每日课程格子
-                    val dayIndices = buildList {
-                        addAll(0..4)
-                        if (showSaturday) add(5)
-                        if (showSunday) add(6)
-                    }
                     dayIndices.forEachIndexed { pos, dayIndex ->
-                        val courseData = cellForWeek(dayIndex, timeSlotIndex)
-                        val rawData = courses[dayIndex]?.get(timeSlotIndex)
-                        val otherCourse = cellForOtherWeeksCourse(dayIndex, timeSlotIndex)
-                        val cellHasContent = when (courseData) {
-                            is List<*> -> courseData.filterIsInstance<Course>().isNotEmpty()
-                            is Map<*, *> -> (courseData["continued"] == true)
-                            else -> otherCourse != null
-                        }
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(140.dp)
-                                .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(4.dp))
-                                .clip(RoundedCornerShape(4.dp))
-                                .then(
-                                    if (cellHasContent) Modifier.border(
-                                        1.dp,
-                                        MaterialTheme.colorScheme.outline,
-                                        RoundedCornerShape(4.dp)
-                                    ) else Modifier
-                                )
-                                .clickable { onCellClick(dayIndex, timeSlotIndex) },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            when (courseData) {
-                                is List<*> -> {
-                                    val courseList = courseData.filterIsInstance<Course>()
-                                    if (courseList.isNotEmpty()) {
+                        val courseList = mainCache[dayIndex]?.get(timeSlotIndex)
+                        val contCourse = contCourseCache[dayIndex]?.get(timeSlotIndex)
+                        val otherCourse = otherCache[dayIndex]?.get(timeSlotIndex)
+                        val cellHasContent = (courseList != null && courseList.isNotEmpty()) || (contCourse != null) || (otherCourse != null)
+                        key(dayIndex) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(140.dp)
+                                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(4.dp))
+                                    .then(
+                                        if (cellHasContent) Modifier.border(
+                                            1.dp,
+                                            MaterialTheme.colorScheme.outline,
+                                            RoundedCornerShape(4.dp)
+                                        ) else Modifier
+                                    )
+                                    .clickable { onCellClick(dayIndex, timeSlotIndex) },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                when {
+                                    courseList != null && courseList.isNotEmpty() -> {
                                         val course = courseList.first()
                                         CourseContent(course = course, isMainCell = true)
                                     }
-                                }
-                                is Map<*, *> -> {
-                                    if (courseData["continued"] == true) {
-                                        val from = (courseData["fromSlot"] as? Number)?.toInt() ?: timeSlotIndex
-                                        val origin = courses[dayIndex]?.get(from)
-                                        val courseForWeek = if (origin is List<*>) origin.filterIsInstance<Course>().firstOrNull { it.selectedWeeks.contains(currentWeek) } else null
-                                        if (courseForWeek != null) {
-                                            val courseColor = courseForWeek.color
-                                            val courseName = courseForWeek.courseName
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxSize()
-                                                    .background(
-                                                        try {
-                                                            Color(android.graphics.Color.parseColor(courseColor)).copy(alpha = 0.8f)
-                                                        } catch (e: Exception) {
-                                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-                                                        }
-                                                    ),
-                                                contentAlignment = Alignment.TopStart
-                                            ) {
-                                                if (courseName.isNotEmpty()) {
-                                                    Text(
-                                                        text = courseName,
-                                                        color = Color.White,
-                                                        fontSize = 15.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        textAlign = TextAlign.Start,
-                                                        lineHeight = 17.sp,
-                                                        modifier = Modifier.padding(4.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
+                                    contCourse != null -> {
+                                        ContinuationCellWeek(colorHex = contCourse.color, courseName = contCourse.courseName)
                                     }
-                                }
-                                else -> {
-                                    // 当前周此格无课：如果其他周存在课，显示灰色占位，否则显示添加+号
-                                    if (otherCourse != null) {
-                                        if (rawData is Map<*, *> && rawData["continued"] == true) {
-                                            GrayContinuationCell()
-                                        } else {
+                                    else -> {
+                                        if (otherCourse != null) {
                                             GrayCourseContent(course = otherCourse, isMainCell = true)
+                                        } else {
+                                            EmptyCellPlus(onClick = { onCellClick(dayIndex, timeSlotIndex) })
                                         }
-                                    } else {
-                                        EmptyCellPlus(onClick = { onCellClick(dayIndex, timeSlotIndex) })
                                     }
                                 }
                             }
@@ -896,11 +872,14 @@ private fun CourseBottomSheetItem(course: Course) {
             .padding(12.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            val colorBox = try {
-                Color(android.graphics.Color.parseColor(course.color))
-            } catch (_: Exception) {
-                MaterialTheme.colorScheme.primary
+            val parsedColor: Color? = remember(course.color) {
+                try {
+                    Color(android.graphics.Color.parseColor(course.color))
+                } catch (_: Exception) {
+                    null
+                }
             }
+            val colorBox = parsedColor ?: MaterialTheme.colorScheme.primary
             Box(
                 modifier = Modifier
                     .size(14.dp)
@@ -1127,11 +1106,14 @@ private fun GrayCourseContent(course: Course, isMainCell: Boolean = true) {
 
 @Composable
 private fun CourseContent(course: Course, isMainCell: Boolean = true) {
-    val backgroundColor = try {
-        Color(android.graphics.Color.parseColor(course.color))
-    } catch (e: Exception) {
-        MaterialTheme.colorScheme.primary
+    val parsedColor: Color? = remember(course.color) {
+        try {
+            Color(android.graphics.Color.parseColor(course.color))
+        } catch (_: Exception) {
+            null
+        }
     }
+    val backgroundColor = parsedColor ?: MaterialTheme.colorScheme.primary
 
     Box(
         modifier = Modifier
@@ -1196,11 +1178,15 @@ Box(
     modifier = Modifier
         .fillMaxSize()
         .background(
-            try {
-                Color(android.graphics.Color.parseColor(colorHex)).copy(alpha = 0.8f)
-            } catch (e: Exception) {
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-            }
+            (
+                remember(colorHex) {
+                    try {
+                        Color(android.graphics.Color.parseColor(colorHex))
+                    } catch (_: Exception) {
+                        null
+                    }
+                } ?: MaterialTheme.colorScheme.primary
+            ).copy(alpha = 0.8f)
         ),
     contentAlignment = Alignment.TopStart
 ) {
