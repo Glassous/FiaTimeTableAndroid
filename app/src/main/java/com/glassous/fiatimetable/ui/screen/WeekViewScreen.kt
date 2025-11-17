@@ -469,6 +469,7 @@ fun WeekViewScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TimeTableGrid(
     timeSlots: List<String>,
@@ -584,11 +585,15 @@ private fun TimeTableGrid(
         // 恢复导航栏 Insets 避让，避免底部内容被遮挡
         contentPadding = WindowInsets.navigationBars.asPaddingValues()
     ) {
-        // 表头 - 星期与左侧时间列（含日期）
-        item {
-            HeaderWithSegment(weekDates = weekDates, showSaturday = showSaturday, showSunday = showSunday)
+        stickyHeader {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.background)
+            ) {
+                HeaderWithSegment(weekDates = weekDates, showSaturday = showSaturday, showSunday = showSunday)
+            }
         }
-        // 取消中间空隙，避免割裂感
         item { Spacer(modifier = Modifier.height(4.dp)) }
 
         // 课程表内容，加入午休/晚休分隔
