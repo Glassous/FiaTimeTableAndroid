@@ -161,7 +161,7 @@ fun SettingsScreen(onNavigateBack: () -> Unit, onNavigateTo: (Screen) -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp),
+                .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
             // 恢复导航栏 Insets 避让，避免底部内容被遮挡
             contentPadding = WindowInsets.navigationBars.asPaddingValues()

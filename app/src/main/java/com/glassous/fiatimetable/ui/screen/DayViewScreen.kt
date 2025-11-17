@@ -206,7 +206,7 @@ fun DayViewScreen(onNavigateCycle: () -> Unit, onStartCourseView: () -> Unit, on
                     .padding(padding)
                     // 恢复导航栏 Insets 避让，避免底部内容被遮挡
                     .navigationBarsPadding()
-                    .padding(12.dp)
+                    .padding(horizontal = 12.dp)
             ) {
                 // 明日课程预告横幅 - 仅在次日页面显示且常驻
                 if (shouldShowBanner) {

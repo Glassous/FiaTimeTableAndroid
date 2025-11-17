@@ -313,7 +313,7 @@ fun CourseViewScreen(
                 beyondViewportPageCount = 2,
                 flingBehavior = PagerDefaults.flingBehavior(state = pagerState),
                 pageSpacing = 12.dp,
-                contentPadding = PaddingValues(top = 16.dp, bottom = 32.dp),
+                contentPadding = PaddingValues(top = 16.dp),
                 modifier = Modifier.fillMaxSize()
             ) { page ->
                 val density = LocalDensity.current
