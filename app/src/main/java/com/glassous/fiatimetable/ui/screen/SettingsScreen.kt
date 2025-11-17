@@ -499,10 +499,11 @@ private fun TimeSlotsSection(
     Column {
         Text(text = title, style = MaterialTheme.typography.titleSmall)
         Spacer(modifier = Modifier.height(6.dp))
+        var pendingDeleteIndex by remember { mutableStateOf<Int?>(null) }
         slots.forEachIndexed { index, slot ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(text = slot, modifier = Modifier.weight(1f))
-                IconButton(onClick = { onRemove(index) }) {
+                IconButton(onClick = { pendingDeleteIndex = index }) {
                     Icon(Icons.Default.Delete, contentDescription = null)
                 }
             }
@@ -522,6 +523,28 @@ private fun TimeSlotsSection(
                     showAdd = false
                 }
             })
+        }
+
+        if (pendingDeleteIndex != null) {
+            val idx = pendingDeleteIndex!!
+            val slotText = slots.getOrNull(idx) ?: ""
+            AlertDialog(
+                onDismissRequest = { pendingDeleteIndex = null },
+                title = { Text("删除时间段") },
+                text = {
+                    val msg = if (slotText.isNotEmpty()) "确认删除该时间段：$slotText？此操作不可恢复。" else "确认删除该时间段？此操作不可恢复。"
+                    Text(msg)
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        onRemove(idx)
+                        pendingDeleteIndex = null
+                    }) { Text("删除") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingDeleteIndex = null }) { Text("取消") }
+                }
+            )
         }
     }
 }
