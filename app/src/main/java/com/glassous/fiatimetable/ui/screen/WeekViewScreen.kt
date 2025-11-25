@@ -101,6 +101,7 @@ fun WeekViewScreen(
     val showSaturday by viewModel.showSaturday.collectAsState()
     val showSunday by viewModel.showSunday.collectAsState()
     val showBreaks by viewModel.showBreaks.collectAsState()
+    val hideInactiveCourses by viewModel.hideInactiveCourses.collectAsState()
     
     // 页面恢复时刷新，确保设置页更改生效
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -273,6 +274,7 @@ fun WeekViewScreen(
                     showSaturday = showSaturday,
                     showSunday = showSunday,
                     showBreaks = showBreaks,
+                    hideInactiveCourses = hideInactiveCourses,
                     modifier = Modifier
                         .fillMaxSize()
                 )
@@ -484,6 +486,7 @@ private fun TimeTableGrid(
     showSaturday: Boolean,
     showSunday: Boolean,
     showBreaks: Boolean,
+    hideInactiveCourses: Boolean,
     modifier: Modifier = Modifier
 ) {
     val mainCache = remember(courses, currentWeek) {
@@ -665,7 +668,8 @@ private fun TimeTableGrid(
                     dayIndices.forEachIndexed { pos, dayIndex ->
                         val courseList = mainCache[dayIndex]?.get(timeSlotIndex)
                         val contCourse = contCourseCache[dayIndex]?.get(timeSlotIndex)
-                        val otherCourse = otherCache[dayIndex]?.get(timeSlotIndex)
+                        val otherCourseRaw = otherCache[dayIndex]?.get(timeSlotIndex)
+                        val otherCourse = if (hideInactiveCourses) null else otherCourseRaw
                         val cellHasContent = (courseList != null && courseList.isNotEmpty()) || (contCourse != null) || (otherCourse != null)
                         key(dayIndex) {
                             Box(

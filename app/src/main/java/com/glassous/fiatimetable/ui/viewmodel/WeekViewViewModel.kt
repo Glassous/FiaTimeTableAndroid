@@ -49,6 +49,9 @@ class WeekViewViewModel(private val repository: TimeTableRepository) : ViewModel
     private val _showBreaks = MutableStateFlow(true)
     val showBreaks: StateFlow<Boolean> = _showBreaks.asStateFlow()
 
+    private val _hideInactiveCourses = MutableStateFlow(false)
+    val hideInactiveCourses: StateFlow<Boolean> = _hideInactiveCourses.asStateFlow()
+
     private val dateFormatterYMD = DateTimeFormatter.ofPattern("yyyy-MM-dd")
     private val dateFormatterMD = DateTimeFormatter.ofPattern("MM/dd")
 
@@ -106,6 +109,7 @@ class WeekViewViewModel(private val repository: TimeTableRepository) : ViewModel
                 _showSunday.value = repository.getShowSunday()
                 // 读取是否显示休息分隔线
                 _showBreaks.value = repository.getShowBreaks()
+                _hideInactiveCourses.value = repository.getHideInactiveCourses()
             } catch (e: Exception) {
                 // 如果加载失败，使用默认数据
                 _timeTableData.value = createDefaultData()
@@ -118,6 +122,7 @@ class WeekViewViewModel(private val repository: TimeTableRepository) : ViewModel
                 _showSunday.value = repository.getShowSunday()
                 // 读取是否显示休息分隔线
                 _showBreaks.value = repository.getShowBreaks()
+                _hideInactiveCourses.value = repository.getHideInactiveCourses()
             }
         }
     }
@@ -169,12 +174,14 @@ class WeekViewViewModel(private val repository: TimeTableRepository) : ViewModel
                 _showSaturday.value = repository.getShowSaturday()
                 _showSunday.value = repository.getShowSunday()
                 _showBreaks.value = repository.getShowBreaks()
+                _hideInactiveCourses.value = repository.getHideInactiveCourses()
             } catch (e: Exception) {
                 // 失败时尽可能刷新设置项，位置保持
                 _showWeekend.value = repository.getShowWeekend()
                 _showSaturday.value = repository.getShowSaturday()
                 _showSunday.value = repository.getShowSunday()
                 _showBreaks.value = repository.getShowBreaks()
+                _hideInactiveCourses.value = repository.getHideInactiveCourses()
             }
         }
     }

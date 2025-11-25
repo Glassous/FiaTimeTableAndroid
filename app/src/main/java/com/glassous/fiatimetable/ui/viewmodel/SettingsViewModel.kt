@@ -78,6 +78,9 @@ class SettingsViewModel(private val repository: TimeTableRepository) : ViewModel
     private val _showFieldDialog = MutableStateFlow(true)
     val showFieldDialog: StateFlow<Boolean> = _showFieldDialog.asStateFlow()
 
+    private val _hideInactiveCourses = MutableStateFlow(false)
+    val hideInactiveCourses: StateFlow<Boolean> = _hideInactiveCourses.asStateFlow()
+
     init {
         viewModelScope.launch {
             loadData()
@@ -121,6 +124,7 @@ class SettingsViewModel(private val repository: TimeTableRepository) : ViewModel
             _showNextCourseCard.value = repository.getShowNextCourseCard()
             // 加载是否显示字段放大弹窗
             _showFieldDialog.value = repository.getShowFieldDialog()
+            _hideInactiveCourses.value = repository.getHideInactiveCourses()
         }
     }
 
@@ -369,6 +373,13 @@ class SettingsViewModel(private val repository: TimeTableRepository) : ViewModel
         viewModelScope.launch {
             _showFieldDialog.value = show
             repository.saveShowFieldDialog(show)
+        }
+    }
+
+    fun setHideInactiveCourses(hide: Boolean) {
+        viewModelScope.launch {
+            _hideInactiveCourses.value = hide
+            repository.saveHideInactiveCourses(hide)
         }
     }
 

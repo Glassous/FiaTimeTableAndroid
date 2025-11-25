@@ -307,6 +307,16 @@ fun SettingsScreen(onNavigateBack: () -> Unit, onNavigateTo: (Screen) -> Unit) {
                             Switch(checked = showBreaks, onCheckedChange = { viewModel.setShowBreaks(it) })
                         }
                         Spacer(modifier = Modifier.height(8.dp))
+                        val hideInactiveCourses by viewModel.hideInactiveCourses.collectAsState()
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("隐藏本周无课课程", style = MaterialTheme.typography.bodyLarge)
+                            Switch(checked = hideInactiveCourses, onCheckedChange = { viewModel.setHideInactiveCourses(it) })
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
                         // 新增：课视图再下节课小卡片显示开关
                         Row(
                             modifier = Modifier.fillMaxWidth(),
