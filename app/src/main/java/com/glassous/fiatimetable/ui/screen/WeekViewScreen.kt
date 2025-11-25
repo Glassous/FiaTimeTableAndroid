@@ -676,6 +676,7 @@ private fun TimeTableGrid(
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(140.dp)
+                                    .clip(RoundedCornerShape(4.dp))
                                     .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(4.dp))
                                     .then(
                                         if (cellHasContent) Modifier.border(
@@ -1064,6 +1065,7 @@ private fun GrayCourseContent(course: Course, isMainCell: Boolean = true) {
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .clip(RoundedCornerShape(4.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
             .padding(4.dp)
     ) {
@@ -1127,6 +1129,7 @@ private fun CourseContent(course: Course, isMainCell: Boolean = true) {
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .clip(RoundedCornerShape(4.dp))
             .background(backgroundColor.copy(alpha = 0.8f))
             .padding(4.dp)
     ) {
@@ -1186,6 +1189,7 @@ private fun ContinuationCellWeek(colorHex: String, courseName: String) {
 Box(
     modifier = Modifier
         .fillMaxSize()
+        .clip(RoundedCornerShape(4.dp))
         .background(
             (
                 remember(colorHex) {
